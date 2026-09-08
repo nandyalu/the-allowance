@@ -35,8 +35,14 @@ class PriceChartStub {
 const EVENTS: TickerEvents = {
   ticker: 'NVDA',
   bars: [
-    { date: '2026-08-01', open: 170, high: 176, low: 169, close: 175, volume: 1000 },
-    { date: '2026-08-04', open: 175, high: 182, low: 174, close: 180, volume: 1200 },
+    {
+      date: '2026-08-01', timestamp: Date.parse('2026-08-01T00:00:00Z') / 1000,
+      open: 170, high: 176, low: 169, close: 175, volume: 1000,
+    },
+    {
+      date: '2026-08-04', timestamp: Date.parse('2026-08-04T00:00:00Z') / 1000,
+      open: 175, high: 182, low: 174, close: 180, volume: 1200,
+    },
   ],
   signals: [
     {
@@ -52,6 +58,7 @@ const EVENTS: TickerEvents = {
       price_at_evaluation: null,
       outcome: null,
       evaluated_at: null,
+      created_at: '2026-08-04T14:00:00Z',
       message_id: null,
       benchmark_price_at_signal: null,
       benchmark_price_at_evaluation: null,
@@ -86,6 +93,7 @@ const EVENTS: TickerEvents = {
       price_at_evaluation: 155,
       outcome: 'pass',
       evaluated_at: null,
+      created_at: '2026-07-01T11:00:00Z',
       message_id: null,
       benchmark_price_at_signal: null,
       benchmark_price_at_evaluation: null,
@@ -117,7 +125,9 @@ const EVENTS: TickerEvents = {
       created_at: '2026-08-03T14:00:00Z',
     },
   ],
-  trades: [{ side: 'buy', date: '2026-07-08', price: 155, quantity: 10 }],
+  trades: [
+    { side: 'buy', date: '2026-07-08', filled_at: '2026-07-08T14:32:00Z', price: 155, quantity: 10 },
+  ],
   lots: [],
 };
 

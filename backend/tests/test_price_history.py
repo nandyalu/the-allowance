@@ -2,14 +2,15 @@
 series used for charts, as opposed to get_price_window()'s 4-scalar summary
 used for signal grading.
 
-Both now read through the daily bar cache, so these patch bars._fetch_history —
-the one place the app talks to yfinance — rather than yfinance itself. Bar dates
-are relative to today so the tests do not need to freeze the clock. The
-``fake_bar_cache`` fixture lives in conftest.py.
+Both now read through the daily bar cache, so these patch
+bars._fetch_history — the one seam through which the app talks to either
+price source (Webull, then yfinance; see bars.py's module docstring) —
+rather than either vendor directly. Bar dates are relative to today so the
+tests do not need to freeze the clock. The ``fake_bar_cache`` fixture lives
+in conftest.py.
 """
 import datetime
 
-import pandas as pd
 import pytest
 
 from backend.services import bars, positions
@@ -18,16 +19,10 @@ TODAY = datetime.date.today()
 DAY_ONE = TODAY - datetime.timedelta(days=8)
 DAY_TWO = TODAY - datetime.timedelta(days=7)
 
-FRAME = pd.DataFrame(
-    {
-        "Open": [10.0, 11.0],
-        "High": [12.0, 13.0],
-        "Low": [9.0, 10.0],
-        "Close": [11.0, 12.0],
-        "Volume": [1000.0, 1500.0],
-    },
-    index=pd.to_datetime([DAY_ONE.isoformat(), DAY_TWO.isoformat()]),
-)
+HISTORY = [
+    {"date": DAY_ONE, "open": 10.0, "high": 12.0, "low": 9.0, "close": 11.0, "volume": 1000.0},
+    {"date": DAY_TWO, "open": 11.0, "high": 13.0, "low": 10.0, "close": 12.0, "volume": 1500.0},
+]
 
 
 @pytest.fixture(autouse=True)
@@ -37,7 +32,7 @@ def _no_live_today_bar(monkeypatch):
 
 
 def test_serializes_full_frame(monkeypatch, fake_bar_cache):
-    monkeypatch.setattr(bars, "_fetch_history", lambda ticker, start: FRAME)
+    monkeypatch.setattr(bars, "_fetch_history", lambda ticker, start, today=None: HISTORY)
 
     result = positions.get_price_history("NVDA", days=30)
     assert len(result) == 2
@@ -51,14 +46,14 @@ def test_serializes_full_frame(monkeypatch, fake_bar_cache):
 
 
 def test_empty_frame_returns_empty_list(monkeypatch, fake_bar_cache):
-    monkeypatch.setattr(bars, "_fetch_history", lambda ticker, start: pd.DataFrame())
+    monkeypatch.setattr(bars, "_fetch_history", lambda ticker, start, today=None: [])
     assert positions.get_price_history("ZZZ") == []
 
 
 def test_failed_fetch_returns_empty_list(monkeypatch, fake_bar_cache):
     # _fetch_history swallows the network error and reports None; nothing
     # downstream should raise.
-    monkeypatch.setattr(bars, "_fetch_history", lambda ticker, start: None)
+    monkeypatch.setattr(bars, "_fetch_history", lambda ticker, start, today=None: None)
     assert positions.get_price_history("ZZZ") == []
 
 
@@ -66,9 +61,9 @@ def test_a_second_call_does_not_refetch(monkeypatch, fake_bar_cache):
     """The whole point of the cache: past sessions are fetched once."""
     calls = []
 
-    def counting_fetch(ticker, start):
+    def counting_fetch(ticker, start, today=None):
         calls.append(ticker)
-        return FRAME
+        return HISTORY
 
     monkeypatch.setattr(bars, "_fetch_history", counting_fetch)
     positions.get_price_history("NVDA", days=30)

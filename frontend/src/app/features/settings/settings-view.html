@@ -192,22 +192,6 @@
       </div>
     </section>
 
-    <section class="card">
-      <div class="card-head">
-        <h2>Daily sweep</h2>
-      </div>
-      <div class="card-body">
-        <label class="field-row">
-          <input
-            type="checkbox"
-            [checked]="dailySweepEnabled()"
-            (change)="onDailySweepChange($event)"
-          />
-          Analyze the full watchlist every weekday at {{ dailySignalsTime.time }} {{ dailySignalsTime.zone }}
-        </label>
-      </div>
-    </section>
-
     <div class="row">
       <button class="btn btn-primary" type="submit" [disabled]="saving()">
         {{ saving() ? 'Saving…' : 'Save settings' }}

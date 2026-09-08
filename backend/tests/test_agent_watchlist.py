@@ -37,11 +37,19 @@ def _book(cash=1000.0, holdings=None):
 
 @pytest.fixture
 def watching(monkeypatch):
-    """A watchlist of three, a cap of four, and research priced at 5 cents."""
+    """A watchlist of three, a cap of four, and research priced at 5 cents.
+
+    Also stands in for get_recent_signals (never analysed, by default) —
+    without it the new per-ticker watchlist line would hit the real local
+    database, and NVDA/GOOG below are real tickers that could have real rows
+    in it. Tests that care about the last-analysed text override this
+    themselves.
+    """
     def _setup(tickers=("AAA", "BBB", "CCC"), cap=4):
         monkeypatch.setattr(agent.research, "get_price", lambda: 0.05)
         monkeypatch.setattr(agent.research, "is_charging", lambda: True)
         monkeypatch.setattr(agent.db, "get_watchlist", lambda: list(tickers))
+        monkeypatch.setattr(agent.db, "get_recent_signals", lambda ticker, limit=1: [])
         monkeypatch.setattr(agent, "_max_watchlist", lambda: cap)
         return list(tickers)
     return _setup
@@ -55,12 +63,11 @@ def test_the_prompt_lists_the_watchlist_and_its_cap(watching):
 
     prompt = agent.build_prompt(_book(), [], {}, watchlist=watchlist, max_watchlist=4)
 
-    assert "analysed every morning" in prompt
-    assert "at most 4" in prompt
+    assert "You track 3 of at most 4 tickers" in prompt
     assert "AAA" in prompt and "BBB" in prompt and "CCC" in prompt
 
 
-def test_held_and_watched_only_are_listed_apart(watching):
+def test_held_and_watched_only_are_marked_apart(watching):
     """Only a watched-only ticker can be dropped. A single undifferentiated
     list invites orders Python then refuses, which wastes the retry."""
     watchlist = watching()
@@ -70,8 +77,9 @@ def test_held_and_watched_only_are_listed_apart(watching):
         watchlist=watchlist, max_watchlist=4,
     )
 
-    assert "cannot be dropped: AAA" in prompt
-    assert "droppable: BBB, CCC" in prompt
+    assert "- AAA: held," in prompt
+    assert "- BBB: watched only," in prompt
+    assert "- CCC: watched only," in prompt
 
 
 def test_a_full_watchlist_says_so_rather_than_waiting_to_refuse(watching):
@@ -114,11 +122,11 @@ def test_a_menu_renders_for_a_book_that_holds_something(watching):
     book.holdings[0].price = 344.0
 
     prompt = agent.build_prompt(
-        book, [], {}, menu=[Candidate("NVDA")], price=0.05, max_research=15,
+        book, [], {}, menu=[Candidate("NVDA")], price=0.05,
         watchlist=["GOOG", "NVDA"], max_watchlist=4,
     )
 
-    assert "$0.05 to have a stock analysed" in prompt
+    assert "order costs $0.05 and runs right after this pass" in prompt
     assert "now $344.00 each" in prompt
 
 
@@ -134,10 +142,10 @@ def test_signals_do_not_rebind_the_research_price_either(watching):
 
     prompt = agent.build_prompt(
         _book(), [Signal()], {"NVDA": 180.0}, menu=[Candidate("AMD")],
-        price=0.05, max_research=15, watchlist=["NVDA"], max_watchlist=4,
+        price=0.05, watchlist=["NVDA"], max_watchlist=4,
     )
 
-    assert "$0.05 to have a stock analysed" in prompt
+    assert "order costs $0.05 and runs right after this pass" in prompt
     assert "now $180.00" in prompt
 
 
@@ -157,9 +165,9 @@ def test_untracking_a_watched_ticker_is_accepted(watching):
 
 
 def test_a_held_ticker_cannot_be_untracked(watching):
-    """The rule that must never be relaxed. Stopping the analysis of a position
-    leaves nothing looking for its exit, and the daily analysis of a holding is
-    what the charge already pays for."""
+    """The rule that must never be relaxed. Untracking a holding would leave
+    no way to ever research it again, and nothing analyses it automatically
+    to make up for that."""
     watching()
 
     accepted, rejected = agent.screen(
@@ -239,16 +247,18 @@ def test_two_researches_cannot_share_one_freed_slot(watching):
     assert rejected[0].ticker == "TWO" and "full at 4" in rejected[0].why
 
 
-def test_researching_something_already_watched_is_still_refused(watching):
-    """Unchanged by the cap, and worth pinning: paying twice for the same
-    analysis is the failure the check was written for."""
-    watching()
+def test_researching_something_already_watched_does_not_need_a_free_slot(watching):
+    """Since 2026-09-08 a ticker already on the list can be re-researched —
+    nothing analyses it automatically any more. Refusing it for a full
+    watchlist would be wrong too: re-researching does not grow the list."""
+    watching(tickers=("AAA", "BBB", "CCC", "DDD"), cap=4)  # already at the cap
 
-    _, rejected = agent.screen(
+    accepted, rejected = agent.screen(
         [{"ticker": "AAA", "side": "research"}], _book(), {}, None, {"AAA"},
     )
 
-    assert "already being researched" in rejected[0].why
+    assert rejected == []
+    assert accepted[0]["ticker"] == "AAA"
 
 
 # --- what happens after it is accepted -----------------------------------------
@@ -321,48 +331,86 @@ def test_a_cash_refusal_does_not_mention_the_watchlist(watching):
     assert "list the untrack before the research" not in prompt
 
 
-def test_the_watchlist_section_states_the_daily_cost(watching):
-    """The agent had every part and never used them: the menu section gives the
-    price, this section gave the count, and the rules say untracking saves
-    future analyses. Across five passes it never mentioned the watchlist while
-    writing that it had little cash. Multiplying is the app's job — the same
-    reason the signal section computes affordable shares in Python."""
+def test_tracking_itself_is_now_free(watching):
+    """Since 2026-09-08 nothing is analysed automatically — the per-morning
+    aggregate cost this used to state ($0.05 x tracked count) no longer
+    exists, because tracking a ticker no longer buys it a daily analysis.
+    Only a "research" order costs anything, once, per use."""
     watching()
 
     prompt = agent.build_prompt(
         _book(), [], {}, watchlist=["AAA", "BBB", "CCC"], max_watchlist=12, price=0.05,
     )
 
-    assert "paying $0.15 every morning" in prompt
+    assert "paying $0.15 every morning" not in prompt
+    assert "Nothing is analysed automatically" in prompt
 
 
-def test_it_says_what_dropping_the_droppable_ones_would_save(watching):
-    watching()
-
-    prompt = agent.build_prompt(
-        _book(holdings=[("AAA", 3, 10.0)]), [], {},
-        watchlist=["AAA", "BBB", "CCC"], max_watchlist=12, price=0.05,
-    )
-
-    assert "droppable: BBB, CCC" in prompt
-    assert "save $0.10 a day" in prompt
-
-
-def test_a_free_deployment_states_no_figure(watching):
-    """The live bot does not charge for research. "$0.00 every morning" would
-    be true and would invite the agent to reason about a cost that is not one."""
+def test_a_free_deployment_still_shows_the_watchlist(watching):
+    """The live bot does not charge for research, but the tracked-ticker list
+    with its prices is still useful information regardless of price."""
     watching()
 
     prompt = agent.build_prompt(
         _book(), [], {}, watchlist=["AAA", "BBB"], max_watchlist=12, price=0.0,
     )
 
-    cost_line = next(l for l in prompt.splitlines() if l.startswith("You are paying"))
+    assert "costs $0.00 and runs right after this pass" in prompt
+    assert "You track 2 of at most 12 tickers" in prompt
 
-    # Scoped to the line under test: "$0.00" appears elsewhere in every prompt,
-    # for realized profit and an empty cash balance.
-    assert cost_line == "You are paying to have 2 tickers analysed every morning, and you may track at most 12."
-    assert "would save" not in prompt
+
+class _LastSignal:
+    def __init__(self, signal_date, price_at_signal, decision):
+        self.signal_date, self.price_at_signal, self.decision = signal_date, price_at_signal, decision
+
+
+def test_a_never_analysed_ticker_says_so(watching):
+    """The whole point of the watchlist rewrite: a ticker nothing has looked
+    at yet must not silently look the same as one that has."""
+    watching()
+
+    prompt = agent.build_prompt(
+        _book(), [], {"AAA": 50.0}, watchlist=["AAA"], max_watchlist=4,
+    )
+
+    assert "- AAA: watched only, now $50.00. Never analysed." in prompt
+
+
+def test_a_previously_analysed_ticker_shows_its_staleness(watching, monkeypatch):
+    """Enough to decide whether a fresh look is worth $0.05: what it last
+    said, and how far the price has moved since."""
+    watching()
+    monkeypatch.setattr(
+        agent.db, "get_recent_signals",
+        lambda ticker, limit=1: [_LastSignal("2026-09-01", 340.00, "Overweight")],
+    )
+
+    prompt = agent.build_prompt(
+        _book(), [], {"AAA": 368.36}, watchlist=["AAA"], max_watchlist=4,
+    )
+
+    line = next(l for l in prompt.splitlines() if l.startswith("- AAA:"))
+    assert "now $368.36" in line
+    assert "Last analysed 2026-09-01 at $340.00" in line
+    assert "+8.3% since" in line
+    assert "Overweight" in line
+
+
+def test_a_ticker_with_no_live_price_says_unavailable_not_unanalysed(watching, monkeypatch):
+    """A delisted or rate-limited ticker must read as a data gap, not as
+    something nobody has bothered to look at."""
+    watching()
+    monkeypatch.setattr(
+        agent.db, "get_recent_signals",
+        lambda ticker, limit=1: [_LastSignal("2026-09-01", 340.00, "Overweight")],
+    )
+
+    prompt = agent.build_prompt(_book(), [], {}, watchlist=["AAA"], max_watchlist=4)
+
+    line = next(l for l in prompt.splitlines() if l.startswith("- AAA:"))
+    assert "price unavailable" in line
+    # No live price means no percentage move can be computed.
+    assert "% since" not in line
 
 
 # --- an empty balance ----------------------------------------------------------
@@ -392,17 +440,20 @@ def test_it_names_the_only_thing_that_raises_cash(watching):
     assert "Selling is the only thing that raises cash" in prompt
 
 
-def test_it_says_the_charge_continues_and_untracking_stops_part_of_it(watching):
-    """The reason this is not a stable state: propagate_ticker bills every
-    ticker the sweep touches, so a book at zero keeps drifting down."""
+def test_a_zero_balance_no_longer_claims_an_automatic_charge(watching):
+    """Both these lines were true only while the sweep existed: a book at
+    zero no longer drifts down on its own, because nothing is charged without
+    the agent asking for it. Claiming otherwise would tell it to expect a
+    charge that never comes."""
     watching()
 
     prompt = agent.build_prompt(
         _book(cash=-8.0), [], {}, watchlist=["AAA"], max_watchlist=12, price=0.05,
     )
 
-    assert "charged tomorrow whether" in prompt
-    assert "Untracking raises no cash and stops part of the charge" in prompt
+    assert "charged tomorrow whether" not in prompt
+    assert "Untracking raises no cash and stops part of the charge" not in prompt
+    assert "You have no money to spend. The balance is $-8.00." in prompt
 
 
 def test_a_book_with_money_keeps_the_spending_limit(watching):

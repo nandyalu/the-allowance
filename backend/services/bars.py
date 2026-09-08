@@ -1,16 +1,25 @@
 """Read-through cache for daily OHLCV bars.
 
-Every yfinance history call in the app goes through here. Before this existed,
-each caller fetched independently: the intraday watchdog pulled roughly a month
-of bars per ticker *every 15 minutes* to use two closes and a volume average,
-while the chart, the ATR, and signal grading each refetched overlapping ranges
-of the same bars. On an 8-ticker watchlist that was a few hundred fetches a day
-to persist eight numbers.
+Before this existed, each caller fetched independently: the intraday watchdog
+pulled roughly a month of bars per ticker *every 15 minutes* to use two
+closes and a volume average, while the chart, the ATR, and signal grading
+each refetched overlapping ranges of the same bars. On an 8-ticker watchlist
+that was a few hundred fetches a day to persist eight numbers.
 
 The saving is possible because **a completed session never changes**. Only the
 bar for the day in progress moves, and that one is deliberately never cached —
 storing it would serve a frozen mid-session snapshot as though it were a close.
 Callers that need today ask for it explicitly and get a live fetch.
+
+**Webull first, yfinance as fallback (2026-09-08).** Every fetch used to go
+through yfinance alone. Confirmed live that day: Webull's history-bar
+endpoint pages back with no real depth ceiling at daily granularity either
+(reached 2001 in testing, in full 1,200-bar pages) — the same endpoint
+already relied on for intraday bars (backend/services/intraday.py). yfinance
+stays as the fallback rather than being removed: it is what already produces
+the "possibly delisted" false positives and 429s documented elsewhere in
+this app, and a Webull outage must not take the daily cache down with it the
+way removing the fallback would.
 
 Everything here is blocking (network + DB) — call via asyncio.to_thread.
 """
@@ -21,7 +30,7 @@ import yfinance as yf
 from tradingagents.dataflows.stockstats_utils import yf_retry
 
 from backend.database import db
-from backend.services import listings
+from backend.services import intraday, listings
 from backend.services.positions import OhlcBar, drop_incomplete_bars
 
 log = logging.getLogger("trading-experiment.bars")
@@ -66,33 +75,74 @@ def last_completed_session(today: datetime.date | None = None) -> datetime.date:
     return day
 
 
-def _to_bars(history, cutoff: datetime.date) -> list[dict]:
-    """Frame rows strictly before ``cutoff``, as plain dicts."""
-    rows = []
-    for timestamp, row in history.iterrows():
-        date = timestamp.date()
-        if date >= cutoff:
-            continue  # the session in progress; never cached
-        rows.append(
-            {
-                "date": date,
-                "open": float(row["Open"]),
-                "high": float(row["High"]),
-                "low": float(row["Low"]),
-                "close": float(row["Close"]),
-                "volume": float(row["Volume"]),
-            }
-        )
-    return rows
+def _to_bars(history: list[dict], cutoff: datetime.date) -> list[dict]:
+    """Rows strictly before ``cutoff``. ``history`` is already the normalized
+    shape both sources produce — see ``_fetch_history``."""
+    return [row for row in history if row["date"] < cutoff]
 
 
-def _fetch_history(ticker: str, start: datetime.date):
+def _fetch_from_webull(ticker: str, start: datetime.date, today: datetime.date) -> list[dict] | None:
+    """Daily bars from ``start`` onward, or None if Webull isn't configured,
+    the call failed, or it came back with nothing — any of which sends the
+    caller to the yfinance fallback instead."""
+    from webull.data.common.timespan import Timespan
+
+    days_needed = max((today - start).days, 0)
+    # Calendar days always overstate trading days (weekends, holidays), so
+    # this rounds up rather than risk asking for too few — one request costs
+    # the same whether it returns 50 bars or 1,200.
+    count = min(intraday._MAX_COUNT, max(50, int(days_needed * 1.6) + 10))
+    bars = intraday.fetch_bars(ticker, count=count, timespan=Timespan.D)
+    if bars is None:
+        return None
+    return [
+        {
+            "date": bar["timestamp"].date(),
+            "open": bar["open"], "high": bar["high"], "low": bar["low"],
+            "close": bar["close"], "volume": bar["volume"],
+        }
+        for bar in bars
+        if bar["timestamp"].date() >= start
+    ]
+
+
+def _fetch_from_yfinance(ticker: str, start: datetime.date) -> list[dict] | None:
+    """None on a failed request. An empty list is a real answer — "asked, and
+    there is nothing there" — which is how a delisted ticker is told apart
+    from a connectivity problem; see ``listings.record_fetch`` in ``refresh``.
+    """
     try:
         history = yf_retry(lambda: yf.Ticker(ticker).history(start=start.isoformat()))
-        return drop_incomplete_bars(history, ("Open", "High", "Low", "Close"))
+        history = drop_incomplete_bars(history, ("Open", "High", "Low", "Close"))
     except Exception:
         log.warning("Bar fetch failed for %s from %s", ticker, start, exc_info=True)
         return None
+    if history is None or history.empty:
+        return []
+    return [
+        {
+            "date": timestamp.date(),
+            "open": float(row["Open"]), "high": float(row["High"]),
+            "low": float(row["Low"]), "close": float(row["Close"]),
+            "volume": float(row["Volume"]),
+        }
+        for timestamp, row in history.iterrows()
+    ]
+
+
+def _fetch_history(
+    ticker: str, start: datetime.date, today: datetime.date | None = None
+) -> list[dict] | None:
+    """Bars from ``start`` onward, oldest first, as plain dicts —
+    date/open/high/low/close/volume — regardless of which source answered.
+    None only when neither source could: Webull unconfigured or empty, and
+    yfinance's own request failing outright.
+    """
+    today = today or datetime.date.today()
+    bars = _fetch_from_webull(ticker, start, today)
+    if bars is not None:
+        return bars
+    return _fetch_from_yfinance(ticker, start)
 
 
 def refresh(ticker: str, start: datetime.date, today: datetime.date | None = None) -> int:
@@ -104,17 +154,15 @@ def refresh(ticker: str, start: datetime.date, today: datetime.date | None = Non
     answering, just with bars months old.
     """
     today = today or datetime.date.today()
-    history = _fetch_history(ticker, start)
+    history = _fetch_history(ticker, start, today)
     _last_fetch[ticker] = _now()
     previous_attempt = _earliest_attempt.get(ticker)
     _earliest_attempt[ticker] = min(start, previous_attempt) if previous_attempt else start
 
-    newest = None
-    if history is not None and not history.empty:
-        newest = history.index[-1].date()
+    newest = history[-1]["date"] if history else None
     listings.record_fetch(ticker, newest, today)
 
-    if history is None or history.empty:
+    if not history:
         return 0
     bars = _to_bars(history, cutoff=today)
     return db.upsert_daily_bars(ticker, bars) if bars else 0
@@ -207,20 +255,19 @@ def _todays_bar(ticker: str, today: datetime.date) -> OhlcBar | None:
         return None
     if not listings.should_fetch(ticker):
         return None
-    history = _fetch_history(ticker, today)
-    if history is None or history.empty:
+    history = _fetch_history(ticker, today, today)
+    if not history:
         return None
-    timestamp = history.index[-1]
-    if timestamp.date() != today:
+    row = history[-1]
+    if row["date"] != today:
         return None
-    row = history.iloc[-1]
     return OhlcBar(
         date=today.isoformat(),
-        open=float(row["Open"]),
-        high=float(row["High"]),
-        low=float(row["Low"]),
-        close=float(row["Close"]),
-        volume=float(row["Volume"]),
+        open=row["open"],
+        high=row["high"],
+        low=row["low"],
+        close=row["close"],
+        volume=row["volume"],
     )
 
 

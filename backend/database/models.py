@@ -94,6 +94,15 @@ class Signal(SQLModel, table=True):
     win_probability: float | None = None  # 0-100, the model's own estimate
     risk_reward: float | None = None  # reward ÷ risk, computed from entry/stop/target
     expected_value_r: float | None = None  # p×rr − (1−p), in R-multiples; signed
+    # When the analysis actually finished, to the second — added 2026-09-08 so
+    # a signal can be placed on an intraday chart instead of smeared across
+    # whichever daily candle its date falls on. `signal_date` alone was never
+    # enough for that; it is a calendar date with no time of day. NULL means
+    # the row predates this column: for those, backend/scripts/backfill_
+    # signal_timestamps.py recovers a best-effort time from the run's trace
+    # file (trace_id) where LLM_TRACE_DIR logging was on, and leaves it NULL
+    # where no trace exists rather than guessing a time nobody recorded.
+    created_at: datetime.datetime | None = None
 
 
 class SignalReport(SQLModel, table=True):
@@ -342,6 +351,34 @@ class DailyBar(SQLModel, table=True):
 
     ticker: str = Field(primary_key=True)
     date: datetime.date = Field(primary_key=True)
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+
+
+class IntradayBar(SQLModel, table=True):
+    """1-minute OHLCV, one row per (ticker, timestamp). Added 2026-09-08 so a
+    signal, an alert, or a trade can be placed at the moment it actually
+    happened instead of smeared across one daily candle.
+
+    Sourced from Webull's history-bar endpoint (backend/services/intraday.py),
+    which — unlike yfinance's hard 8-day cap on 1-minute data — returns real
+    history arbitrarily far back, paged by ``end_time``. Backfilled once to
+    the experiment's first trading day (2026-09-02) and kept current by the
+    15-minute alert watchdog tick, the same cadence that already refreshes
+    ``TickerPrice``.
+
+    ``timestamp`` is UTC, to the minute, matching the bar's own start time as
+    Webull reports it. Finer than any current use needs — a chart showing 5
+    or 15-minute candles aggregates these rows at read time rather than
+    storing every resolution separately, the same reasoning ``DailyBar``
+    already applies to storing only completed sessions once.
+    """
+
+    ticker: str = Field(primary_key=True)
+    timestamp: datetime.datetime = Field(primary_key=True)
     open: float
     high: float
     low: float

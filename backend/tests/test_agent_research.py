@@ -43,17 +43,16 @@ def charging(monkeypatch):
 def test_the_menu_reaches_the_prompt_with_its_price(charging):
     menu = [Candidate("AAA", price=12.5, change_pct=3.2)]
 
-    prompt = agent.build_prompt(_book(), [], {}, menu=menu, price=0.05, max_research=15)
+    prompt = agent.build_prompt(_book(), [], {}, menu=menu, price=0.05)
 
-    assert "$0.05 to have a stock analysed" in prompt
+    assert "order costs $0.05 and runs right after this pass" in prompt
     assert "AAA" in prompt and "$12.50" in prompt and "+3.2% today" in prompt
-    assert "at most 15" in prompt
 
 
 def test_the_prompt_says_the_menu_is_unresearched(charging):
     """Screened for being liquid, not for being good. A model told these are
     candidates would reasonably assume somebody vetted them."""
-    prompt = agent.build_prompt(_book(), [], {}, menu=[Candidate("AAA")], price=0.05, max_research=15)
+    prompt = agent.build_prompt(_book(), [], {}, menu=[Candidate("AAA")], price=0.05)
 
     assert "Nothing has been analysed on these yet" in prompt
     assert "not for being good" in prompt
@@ -89,16 +88,17 @@ def test_a_ticker_not_on_the_menu_is_refused(charging):
     assert "not on today's candidate list" in rejected[0].why
 
 
-def test_the_daily_limit_is_enforced_whatever_the_cash(charging, monkeypatch):
-    """Money does not model time. The sweep has to finish before the open, and
-    an agent with cash to burn could queue more GPU-hours than there are."""
-    monkeypatch.setattr(agent, "_max_research_per_day", lambda: 2)
+def test_there_is_no_daily_count_limit_any_more(charging):
+    """Removed 2026-09-08 alongside the sweep — it existed to pace GPU load
+    within the sweep's fixed pre-open window, which no longer exists.
+    Research is spread across the day as the agent decides to spend on it,
+    and cash is what actually bounds it now, not a count."""
     orders = [{"ticker": t, "side": "research"} for t in ("AAA", "BBB", "CCC")]
 
     accepted, rejected = agent.screen(orders, _book(cash=1000.0), {}, {}, {"AAA", "BBB", "CCC"})
 
-    assert len(accepted) == 2
-    assert "daily research limit" in rejected[0].why
+    assert len(accepted) == 3
+    assert rejected == []
 
 
 def test_research_it_cannot_afford_is_refused(charging):
@@ -110,17 +110,44 @@ def test_research_it_cannot_afford_is_refused(charging):
     assert "only $0.01 is left" in rejected[0].why
 
 
-def test_something_already_tracked_is_not_researched_twice(charging, monkeypatch):
-    """It is analysed every day anyway, and charged for. Paying again to start
-    doing what is already happening is the plainest waste available."""
+def test_something_already_tracked_can_be_researched_again(charging, monkeypatch):
+    """Since 2026-09-08 nothing is analysed automatically, holdings included —
+    refusing a fresh look at something already tracked would mean it could
+    never be re-analysed at all."""
     monkeypatch.setattr(agent.db, "get_watchlist", lambda: ["AAA"])
 
     accepted, rejected = agent.screen(
         [{"ticker": "AAA", "side": "research"}], _book(), {}, {}, {"AAA"}
     )
 
-    assert accepted == []
-    assert "already being researched" in rejected[0].why
+    assert rejected == []
+    assert accepted[0]["ticker"] == "AAA"
+
+
+def test_a_fresh_signal_today_does_not_block_a_second_look(charging, monkeypatch):
+    """Removed the same day as the sweep. An analysis takes about twenty
+    minutes — a price nearing its stop or target is exactly the case where a
+    second look the same day is the right call, and cash already bounds
+    however many the agent is willing to pay for."""
+    monkeypatch.setattr(agent.db, "get_watchlist", lambda: ["AAA"])
+    monkeypatch.setattr(agent.db, "has_signal_today", lambda ticker: True)
+
+    accepted, rejected = agent.screen(
+        [{"ticker": "AAA", "side": "research"}], _book(), {}, {}, {"AAA"}
+    )
+
+    assert rejected == []
+    assert accepted[0]["ticker"] == "AAA"
+
+
+def test_the_same_ticker_cannot_be_commissioned_twice_in_one_pass(charging):
+    accepted, rejected = agent.screen(
+        [{"ticker": "NEW", "side": "research"}, {"ticker": "NEW", "side": "research"}],
+        _book(), {}, {}, {"NEW"},
+    )
+
+    assert len(accepted) == 1
+    assert "already commissioned this pass" in rejected[0].why
 
 
 def test_research_spends_before_a_later_buy_sees_the_cash(charging):
@@ -140,8 +167,9 @@ def test_research_spends_before_a_later_buy_sees_the_cash(charging):
 
 
 def test_commissioning_tracks_the_ticker(charging, monkeypatch):
-    """Tracking is how the analysis gets run: the morning sweep reads the
-    watchlist, so adding the ticker is the commission."""
+    """Tracking is a side effect now, not the mechanism — nothing reads the
+    watchlist to decide what to analyse. It just means the ticker is still
+    there to be researched again later."""
     tracked = []
     monkeypatch.setattr(agent.db, "add_to_watchlist", lambda t: tracked.append(t))
     run = agent.AgentRun()

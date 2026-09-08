@@ -45,6 +45,12 @@ class OrmModel(Schema):
 
 class OhlcBarOut(OrmModel):
     date: str
+    # Unix seconds, UTC — added 2026-09-08 alongside the intraday bar cache.
+    # `date` alone cannot place a bar within a day, and lightweight-charts
+    # needs a real timestamp (not a "YYYY-MM-DD" string) to draw sub-day
+    # candles at all. Kept alongside `date` rather than replacing it, since
+    # `date` is still what a human-readable label wants.
+    timestamp: int
     open: float
     high: float
     low: float
@@ -85,6 +91,11 @@ class SignalOut(OrmModel):
     win_probability: float | None
     risk_reward: float | None
     expected_value_r: float | None
+    # When the analysis actually finished, to the second. NULL on rows that
+    # predate the column and had no trace_id to recover it from — see
+    # backend/scripts/backfill_signal_timestamps.py. `signal_date` alone is a
+    # calendar date and cannot place a signal within a day on a chart.
+    created_at: datetime | None = None
     # What this run cost. NULL when it was never measured — a zero would read
     # as a free analysis rather than an unrecorded one.
     cost_usd: float | None = None
@@ -216,6 +227,12 @@ class TradeOut(Schema):
 
     side: str  # "buy" | "sell"
     date: date
+    # The real fill time, to the second — added 2026-09-08 alongside the
+    # intraday bar cache, so a trade can be placed on the chart at the
+    # moment it actually happened rather than smeared across `date`'s whole
+    # day. This is when the app noticed the fill by polling the broker, not
+    # a fill time the broker itself reports — see AgentTrade.filled_at.
+    filled_at: datetime
     price: float
     quantity: float
 
@@ -282,7 +299,6 @@ class SettingsOut(Schema):
     alert_stop_pct: float
     alert_volume_mult: float
     alerts_enabled: bool
-    daily_sweep_enabled: bool
     agent_enabled: bool
     agent_budget: float
     # The conviction floor. Zero means off, which is the default — see
@@ -306,7 +322,6 @@ class SettingsPatchIn(Schema):
     alert_stop_pct: float | None = None
     alert_volume_mult: float | None = None
     alerts_enabled: bool | None = None
-    daily_sweep_enabled: bool | None = None
     agent_enabled: bool | None = None
     agent_budget: float | None = None
     agent_min_win_probability: float | None = None

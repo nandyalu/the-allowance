@@ -423,6 +423,15 @@ def test_a_placed_order_is_settled_before_the_run_is_reported(monkeypatch):
         agent.agent_book, "build_book",
         lambda price_lookup=None: calls.append("book") or _book(cash=500.0),
     )
+    # A stated stop being unusable falls back to an ATR-derived one, which
+    # goes through the daily bar cache — now Webull-first (2026-09-08) — and
+    # would otherwise be the second thing in this test to reach the live
+    # API. This test does not care about the derived stop, only settlement.
+    monkeypatch.setattr(agent, "get_atr", lambda ticker: None)
+    # The fake bracket below returns no exits, so _arm_exits falls back to a
+    # fresh quote to arm them separately — another live-API path this test
+    # does not care about.
+    monkeypatch.setattr(agent, "get_current_price", lambda t: 10.0)
     # Without this the order goes to the live sandbox. It did: this test placed
     # real AAA brackets at a $10.05 limit — the $10.00 fixture price with the
     # entry buffer — on every full-suite run, and Webull cancelled them at each
@@ -469,6 +478,33 @@ def test_a_run_that_places_nothing_does_not_settle_twice(monkeypatch):
     agent.run_once()
 
     assert calls.count("settle") == 1
+
+
+def test_the_price_map_covers_the_whole_watchlist(monkeypatch):
+    """Since 2026-09-08 the prompt shows a live price for every tracked
+    ticker, not just ones with a recent signal or a holding — a
+    watched-but-unanalysed ticker still needs a price to be worth anything.
+    Without this it would silently read "price unavailable" for every name
+    nothing has looked at yet, which is most of the watchlist most days."""
+    monkeypatch.setattr(agent.quotes, "is_sandbox", lambda: True)
+    monkeypatch.setattr(agent.watchdog, "is_us_market_hours", lambda: True)
+    monkeypatch.setattr(agent, "is_enabled", lambda: True)
+    monkeypatch.setattr(agent, "settle_pending", lambda: [])
+    monkeypatch.setattr(agent, "_recent_signals", lambda: [])
+    monkeypatch.setattr(agent.db, "get_recent_signals", lambda limit=200: [])
+    monkeypatch.setattr(agent.agent_book, "closed_trades", lambda decisions=None: [])
+    monkeypatch.setattr(agent.db, "get_watchlist", lambda: ["HOOD", "SMCI"])
+    seen_tickers = []
+    monkeypatch.setattr(
+        agent, "_price_map",
+        lambda tickers: seen_tickers.append(sorted(tickers)) or {},
+    )
+    monkeypatch.setattr(agent.agent_book, "build_book", lambda price_lookup=None: _book())
+    monkeypatch.setattr(agent, "_decide", lambda *a, **kw: ("hold", [], []))
+
+    agent.run_once()
+
+    assert seen_tickers == [["HOOD", "SMCI"]]
 
 
 # --- learning from its own record ----------------------------------------------

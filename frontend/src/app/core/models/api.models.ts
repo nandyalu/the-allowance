@@ -4,6 +4,11 @@
 
 export interface OhlcBar {
   date: string;
+  /** Unix seconds, UTC. Added 2026-09-08 alongside the intraday bar cache —
+   * `date` alone cannot place a bar within a day, and the chart needs a real
+   * timestamp to draw a sub-day candle at its true time rather than lumped
+   * onto whichever daily candle its date falls on. */
+  timestamp: number;
   open: number;
   high: number;
   low: number;
@@ -24,6 +29,10 @@ export interface Signal {
   price_at_evaluation: number | null;
   outcome: 'pass' | 'fail' | null;
   evaluated_at: string | null;
+  // When the analysis actually finished, to the second. Null on rows that
+  // predate the column and had no trace to recover it from — `signal_date`
+  // alone is a calendar date and cannot place a signal within a day.
+  created_at: string | null;
   message_id: string | null;
   benchmark_price_at_signal: number | null;
   benchmark_price_at_evaluation: number | null;
@@ -183,6 +192,9 @@ export interface Alert {
 export interface Trade {
   side: 'buy' | 'sell';
   date: string;
+  /** The real fill time, to the second. When the app noticed the fill by
+   * polling the broker, not a fill time the broker itself reports. */
+  filled_at: string;
   price: number;
   quantity: number;
 }
@@ -230,7 +242,6 @@ export interface Settings {
   alert_stop_pct: number;
   alert_volume_mult: number;
   alerts_enabled: boolean;
-  daily_sweep_enabled: boolean;
   agent_enabled: boolean;
   agent_budget: number;
   /** The conviction floor. Zero means off, which is the default. */

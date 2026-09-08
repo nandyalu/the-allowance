@@ -1,20 +1,22 @@
 """Ticker list, detail, and price history for the charts. All read-only.
 
-**There is no route that starts an analysis.** The morning sweep analyses the
-watchlist, and the agent decides what is on the watchlist. An analysis started
-by hand would cost the agent nothing and appear in the record beside the ones
-it paid for, so the charge that makes it choose carefully would stop meaning
-anything.
+**There is no route that starts an analysis.** The agent decides what is on
+the watchlist and when it gets a fresh look — see JOURNEY.md, 2026-09-08. An
+analysis started by hand would cost the agent nothing and appear in the
+record beside the ones it paid for, so the charge that makes it choose
+carefully would stop meaning anything.
 
 Current price comes from the ticker price cache (``TickerPrice``), kept warm by
 the scheduled jobs rather than by this page being open.
 """
+import datetime
+
 from fastapi import APIRouter
 
 
 from backend.database import db
 from backend.database.models import TickerPrice
-from backend.services import ticker_book
+from backend.services import intraday, ticker_book
 from backend.api.schemas import (
     AgentPositionOut,
     AlertOut,
@@ -26,9 +28,16 @@ from backend.api.schemas import (
     TickerSummaryOut,
     TradeOut,
 )
-from backend.services.positions import get_price_history
 
 router = APIRouter(prefix="/api/tickers", tags=["tickers"])
+
+
+def _ohlc_bar_out(bar: intraday.ChartBar) -> OhlcBarOut:
+    return OhlcBarOut(
+        date=bar.timestamp.date().isoformat(),
+        timestamp=int(bar.timestamp.replace(tzinfo=datetime.timezone.utc).timestamp()),
+        open=bar.open, high=bar.high, low=bar.low, close=bar.close, volume=bar.volume,
+    )
 
 
 def _latest_signal(ticker: str) -> SignalOut | None:
@@ -47,6 +56,7 @@ def _filled_trades(ticker: str) -> list[TradeOut]:
         TradeOut(
             side=trade.side,
             date=trade.filled_at.date(),
+            filled_at=trade.filled_at,
             price=trade.price,
             quantity=trade.quantity,
         )
@@ -106,8 +116,8 @@ def get_ticker(ticker: str):
 
 @router.get("/{ticker}/chart", response_model=list[OhlcBarOut])
 def get_chart(ticker: str, days: int = 90):
-    bars = get_price_history(ticker.upper().strip(), days=days)
-    return [OhlcBarOut.model_validate(bar) for bar in bars]
+    bars = intraday.get_chart_bars(ticker.upper().strip(), days=days)
+    return [_ohlc_bar_out(bar) for bar in bars]
 
 
 @router.get("/{ticker}/events", response_model=TickerEventsOut)
@@ -123,12 +133,16 @@ def get_ticker_events(ticker: str, days: int = 180):
     Events older than the chart window are still returned: the timeline is a
     history, and truncating it to whatever the chart happens to show would hide
     the earlier signals that explain a current position.
+
+    Bars come from ``intraday.get_chart_bars``: aggregated 1-minute detail for
+    whatever recent stretch is covered (2026-09-08 onward, up to 90 days),
+    daily bars for anything older — see JOURNEY.md, 2026-09-08.
     """
     ticker = ticker.upper().strip()
-    bars = get_price_history(ticker, days=days)
+    bars = intraday.get_chart_bars(ticker, days=days)
     return TickerEventsOut(
         ticker=ticker,
-        bars=[OhlcBarOut.model_validate(bar) for bar in bars],
+        bars=[_ohlc_bar_out(bar) for bar in bars],
         signals=[SignalOut.model_validate(s) for s in db.get_recent_signals(ticker, limit=50)],
         alerts=[
             AlertOut.model_validate(a) for a in db.get_recent_alerts(limit=500) if a.ticker == ticker

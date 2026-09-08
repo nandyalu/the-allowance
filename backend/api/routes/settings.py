@@ -28,7 +28,6 @@ def _current_settings() -> SettingsOut:
         alert_stop_pct=alerts.stop_pct,
         alert_volume_mult=alerts.volume_mult,
         alerts_enabled=alerts.enabled,
-        daily_sweep_enabled=db.get_setting("daily_sweep") != "off",
         agent_enabled=agent.is_enabled(),
         agent_budget=agent_book.get_budget(),
         agent_min_win_probability=agent.get_conviction()[0],
@@ -68,8 +67,6 @@ def update_settings(payload: SettingsPatchIn):
 
     if payload.alerts_enabled is not None:
         db.set_setting("alerts_enabled", "on" if payload.alerts_enabled else "off")
-    if payload.daily_sweep_enabled is not None:
-        db.set_setting("daily_sweep", "on" if payload.daily_sweep_enabled else "off")
 
     if payload.agent_budget is not None:
         try:

@@ -26,6 +26,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from backend.database import db
 from backend.services import (
@@ -184,6 +185,45 @@ _FAILURE_LOOKBACK_RUNS = 3
 # the agent does not spend its attention reading its own log.
 _WAKEUPS_SHOWN = 6
 
+# How many days a change note stays in the prompt. Shown for a fixed window
+# rather than until acknowledged, the same as recent wakeups and failures —
+# a standing reminder would eventually crowd out the pass's own decision, and
+# there is no clean way to tell "the agent read this" from "the agent ignored
+# this" short of asking it to say so, which is one more thing to get wrong.
+_CHANGE_NOTES_WINDOW_DAYS = 3
+
+# Git-tracked rather than in the database — see describe_recent_changes for
+# why. backend/services/agent.py -> backend/ -> agent_changes.json.
+_CHANGES_FILE = Path(__file__).resolve().parent.parent / "agent_changes.json"
+
+
+def load_change_notes() -> list[dict]:
+    """Read backend/agent_changes.json, defensively.
+
+    Read fresh rather than cached: the file is a few hundred bytes, read at
+    most a few times an hour, and caching it would only add a staleness bug
+    for no measurable benefit.
+
+    Also called from the app's startup log (see backend/app.py's lifespan),
+    so a typo in the file is visible in the logs the moment the container
+    starts rather than discovered mid-decision weeks later. A malformed file
+    must never break a decision pass, so every failure here is logged loudly
+    and answered with an empty list rather than raised.
+    """
+    try:
+        raw = _CHANGES_FILE.read_text()
+    except FileNotFoundError:
+        return []
+    try:
+        entries = json.loads(raw)
+    except ValueError:
+        log.exception("%s is not valid JSON — showing the agent nothing", _CHANGES_FILE)
+        return []
+    if not isinstance(entries, list):
+        log.error("%s must be a JSON list — showing the agent nothing", _CHANGES_FILE)
+        return []
+    return [e for e in entries if isinstance(e, dict) and e.get("date") and e.get("message")]
+
 
 def describe_analysis_timing(
     durations: list[float], running: dict, now: datetime.datetime | None = None
@@ -219,6 +259,33 @@ def describe_analysis_timing(
                 started = started.replace(tzinfo=datetime.timezone.utc)
             parts.append(f"{ticker} ({(here - started).total_seconds() / 60:.0f} min so far)")
         lines.append("Being analysed right now: " + ", ".join(parts) + ".")
+    return lines
+
+
+def describe_recent_changes(changes: list[dict]) -> list[str]:
+    """Tell the agent when something it flagged with a ``note`` has been built.
+
+    **A note reaches the people who maintain this app, and "nothing acts on
+    it automatically."** That was only ever true in one direction. If a
+    maintainer actually built what a note asked for, the agent had no way to
+    learn its note had been read — it would keep asking, or keep working
+    around a restriction that no longer existed, because nothing ever told it
+    the ground had moved.
+
+    These are written by hand in ``backend/agent_changes.json``, in the same
+    commit as the change itself and often alongside the JOURNEY.md entry it
+    also needs — but short, and aimed at the agent rather than a person
+    reading the repo's history. A git-tracked file rather than a database row
+    on purpose: this project has reset its own database more than once, and
+    an entry here should survive that the way JOURNEY.md already does. Shown
+    for a fixed few days rather than kept forever, the same as recent wakeups
+    and failures.
+    """
+    if not changes:
+        return []
+    lines = ["Changes made to this app recently that may affect how you decide:"]
+    for c in changes:
+        lines.append(f"- {c.get('date', '')}: {c.get('message', '')}")
     return lines
 
 
@@ -274,6 +341,18 @@ def describe_recent_failures(failures: list[dict]) -> list[str]:
     Deliberately a prompt section rather than a mid-pass retry: it costs no
     extra call, cannot loop on an error that is not going away, and leaves a
     decision pass as one comparable unit.
+
+    **The closing line used to say a repeat "will usually fail the same
+    way."** That is true of a structural refusal — unsettled cash, a closed
+    session — but false of one caused by timing: the market has since opened,
+    or a slow cancel has since cleared. On 2026-09-08 the agent sold AVGO to
+    take profit and cut concentration risk, watched the sell fail on a timing
+    bug, and then held for two more passes citing reasons that never
+    mentioned the concentration risk it had just named — reasoning that reads
+    like the old line's own conclusion rather than a reconsidered one. The
+    line cannot tell a bug from a standing restriction, so it no longer
+    guesses which this is; it points at the reason instead and leaves the
+    judgment to the agent.
     """
     if not failures:
         return []
@@ -286,8 +365,13 @@ def describe_recent_failures(failures: list[dict]) -> list[str]:
         qty = f.get("quantity") or 0
         lines.append(f"- {side} {qty:g} {f.get('ticker', '')}: {f.get('why', '')}")
     lines.append(
-        "Take that into account. Proposing the same thing again will usually "
-        "fail the same way."
+        "Look at why each one failed before deciding what to do about it. Some "
+        "of these are standing restrictions that will refuse the same order "
+        "again unchanged — unsettled cash, a market that is still closed. "
+        "Others were about timing or a broker hiccup, not about whether the "
+        "underlying decision was right, and trying again can succeed once the "
+        "reason no longer applies. If the decision behind a failed order still "
+        "holds, do not let the failure alone talk you out of it."
     )
     return lines
 
@@ -360,7 +444,6 @@ def build_prompt(
     horizon_days: int | None = None,
     menu: list | None = None,
     price: float = 0.0,
-    max_research: int = 0,
     watchlist: list[str] | None = None,
     max_watchlist: int = 0,
     failures: list[dict] | None = None,
@@ -368,6 +451,7 @@ def build_prompt(
     wakeups: list[dict] | None = None,
     analysis_minutes: list[float] | None = None,
     running_analyses: dict | None = None,
+    changes: list[dict] | None = None,
 ) -> str:
     """Everything the model gets. Written as plain figures rather than a table
     of jargon, because the numbers are the whole input and a misread one is a
@@ -395,6 +479,9 @@ def build_prompt(
     ]
     if regime_line:
         lines += [regime_line, ""]
+    recent_changes = describe_recent_changes(changes or [])
+    if recent_changes:
+        lines += [*recent_changes, ""]
     lines += [
         f"Your account is ${book.budget:,.2f} in total. That is all you will ever have —",
         "there is no more money coming.",
@@ -562,59 +649,58 @@ def build_prompt(
         floors.append(f"risk/reward of at least {min_risk_reward:.2f}")
     conviction_line = " and ".join(floors)
 
+    if (watchlist and max_watchlist) or menu:
+        # Shared by the watchlist and the candidate menu below, so the price
+        # is explained exactly once. Since 2026-09-08 nothing is analysed
+        # automatically — not even what is held — so every analysis, new
+        # ticker or re-look, is this same $0.05 decision, and there is no
+        # daily count on how many you may make: cash is what bounds it.
+        lines += [
+            "",
+            f"Nothing is analysed automatically, holdings included. A \"research\" order "
+            f"costs ${price:,.2f} and runs right after this pass. A bad choice of what "
+            "to study is a loss like any other, so spend it where you actually want a "
+            "fresh look — not because it is free to ask.",
+        ]
+
     if watchlist and max_watchlist:
-        # Shown before the menu, because what is already being paid for every
-        # morning is the context for whether to add another. Held names are
-        # separated from watched-only ones because only the second kind can be
-        # dropped, and a list that hides that invites orders Python refuses.
+        # Every tracked ticker, priced and dated, so staleness is something
+        # the agent can see rather than something it has to remember. Held
+        # names are marked apart from watched-only ones because only the
+        # second kind can be dropped, and hiding that invites orders Python
+        # refuses.
         held_tickers = {h.ticker for h in book.holdings}
-        watched_only = sorted(t for t in watchlist if t not in held_tickers)
-        also_held = sorted(t for t in watchlist if t in held_tickers)
-        # The daily cost as a figure, not as two facts to multiply. The price
-        # appears in the menu section and the count appears here, and across
-        # five passes the agent never once mentioned the watchlist — while
-        # writing that it had "small cash amount available for new shares".
-        # This app already computes the affordable-share count in Python for
-        # the same reason: a model left to do the arithmetic proposed $1,944 of
-        # buys against $1,000 of cash.
-        daily = len(watchlist) * price
-        droppable_cost = len(watched_only) * price
-        cost_line = (
-            f"You are paying ${daily:,.2f} every morning to have "
-            f"{len(watchlist)} tickers analysed, and you may track at most "
-            f"{max_watchlist}." if price else
-            f"You are paying to have {len(watchlist)} tickers analysed every "
-            f"morning, and you may track at most {max_watchlist}."
-        )
-        lines += ["", cost_line]
-        if also_held:
-            lines.append(
-                f"- Held, so always analysed and cannot be dropped: {', '.join(also_held)}"
-            )
-        if watched_only:
-            saving = (f", and dropping them all would save ${droppable_cost:,.2f} a day"
-                      if price else "")
-            lines.append(
-                f"- Watched but not held, so droppable: {', '.join(watched_only)}"
-                f"{saving}"
-            )
+        lines += ["", f"You track {len(watchlist)} of at most {max_watchlist} tickers:"]
+        for ticker in sorted(watchlist):
+            live = prices.get(ticker)
+            price_text = f"${live:,.2f}" if live is not None else "price unavailable"
+            status = "held" if ticker in held_tickers else "watched only"
+            recent = db.get_recent_signals(ticker, limit=1)
+            if recent and recent[0].price_at_signal:
+                last = recent[0]
+                move = ""
+                if live is not None:
+                    pct = (live - last.price_at_signal) / last.price_at_signal * 100
+                    move = f", {pct:+.1f}% since"
+                last_text = (
+                    f"Last analysed {last.signal_date} at ${last.price_at_signal:,.2f}"
+                    f"{move} — {last.decision}"
+                )
+            else:
+                last_text = "Never analysed"
+            lines.append(f"- {ticker}: {status}, now {price_text}. {last_text}.")
         if len(watchlist) >= max_watchlist:
             lines.append(
-                "That is the limit, so nothing new can be researched until you stop "
+                "That is the limit, so nothing new can be tracked until you stop "
                 "watching something."
             )
 
     if menu:
         lines += [
             "",
-            f"You may pay ${price:,.2f} to have a stock analysed. That money comes out of the "
-            f"same cash you trade with, so it is a real cost and a bad choice of what to "
-            f"study is a loss like any other. You may research at most {max_research} today.",
-            "",
             "Nothing has been analysed on these yet — they are screened for being liquid and "
             "actively traded, not for being good. Researching one buys an analyst's opinion, "
-            "not a position today. The answer usually comes with tomorrow morning's analyses, "
-            "and a sharp move while the market is open brings it sooner:",
+            "not a position today:",
         ]
         for candidate in menu:
             move = f", {candidate.change_pct:+.1f}% today" if candidate.change_pct is not None else ""
@@ -622,10 +708,6 @@ def build_prompt(
                 f"- {candidate.ticker}: {candidate.name[:40]} at ${candidate.price:,.2f}"
                 f"{move}, {candidate.volume_m:,.1f}M shares traded"
             )
-        lines.append(
-            "Anything you already hold is analysed every day whether you ask or not, and "
-            "charged the same — you own the cost of finding your own exit."
-        )
 
     lines += [
         "",
@@ -638,9 +720,6 @@ def build_prompt(
                 f"- **You have no money to spend. The balance is ${book.cash:,.2f}.** You",
                 "  cannot buy anything and cannot pay for a new analysis until that",
                 "  changes. Selling is the only thing that raises cash.",
-                "- The analyses you already pay for run and are charged tomorrow whether",
-                "  or not there is money for them, so this gets worse on its own.",
-                "  Untracking raises no cash and stops part of the charge.",
             ]
             if book.cash < research_price_floor
             else [
@@ -679,37 +758,35 @@ def build_prompt(
         "  nothing resting on it, an adjust places the exits for the first time.",
         *(
             [
-                "- To have something analysed, use side \"research\" with a ticker from the",
-                "  list above and no quantity. Choosing what to study is the only way",
-                "  anything new ever enters this account, and paying to study something you",
-                "  then ignore is how the money leaves it.",
-                "- You choose when you see the answer. Add \"when\": \"now\" and the analysis",
-                "  runs straight after this pass — you will be asked to decide again within",
-                "  the hour, while the market is still open. Leave it out, or say",
-                "  \"tomorrow\", and it comes with tomorrow morning's analyses instead.",
-                "  Both cost the same $0.05. Asking for it now is worth it when the move you",
-                "  are reading is happening today; waiting is worth it when it is not, and",
-                "  a night of news may change the answer.",
+                "- Nothing is analysed automatically, holdings included. To have something",
+                "  looked at, use side \"research\" with a ticker and no quantity. It runs",
+                "  right after this pass — you will be asked to decide again within the",
+                "  hour, while the market is still open. A new ticker must come from the",
+                "  candidate list above; one you already track can be re-researched as",
+                "  often as you judge it worth $0.05 — an analysis takes about twenty",
+                "  minutes, so a second look the same day is often the right call, not a",
+                "  wasteful one. Choosing what to study is the only way anything changes,",
+                "  and paying to study something you then ignore is how the money leaves",
+                "  this account.",
                 "- A stock that moves sharply while the market is open is analysed on the",
                 "  spot whether you asked for it or not, so a volatile name may come back",
                 "  the same day regardless.",
             ]
-            if menu
+            if (watchlist or menu)
             else []
         ),
         *(
             [
-                f"- You may track at most {max_watchlist} tickers, and every one of them is",
-                "  analysed and charged every morning whether you act on it or not. To stop",
-                "  watching one, use side \"untrack\" with its ticker and no quantity.",
-                "  Untracking costs nothing and refunds nothing — what it saves is the",
-                "  analyses you would have paid for tomorrow and after.",
+                f"- You may track at most {max_watchlist} tickers. Tracking costs nothing by",
+                "  itself; a \"research\" order is what charges. A full list cannot take a",
+                "  new name until you free a slot. To stop watching one, use side \"untrack\"",
+                "  with its ticker and no quantity. Untracking costs nothing and refunds",
+                "  nothing.",
                 "- Untracking frees a slot the same way a sell frees cash, and in the same",
                 "  order: to research something when the list is full, list the untrack",
                 "  first and the research after it.",
-                "- You cannot untrack something you hold. Sell it first if it is genuinely",
-                "  not worth analysing — a position nobody is analysing is one with nothing",
-                "  watching for its exit.",
+                "- You cannot untrack something you hold. Sell it first — untracking it",
+                "  would leave you unable to ever research it again.",
             ]
             if max_watchlist
             else []
@@ -754,12 +831,11 @@ def build_prompt(
         '{"reasoning": "one or two sentences", "next_wakeup": "45 minutes", "orders": '
         '[{"ticker": "AAPL", "side": "buy", "quantity": 2, "reason": "why"},',
         ' {"ticker": "MSFT", "side": "adjust", "stop": 410.5, "reason": "why"},',
-        # The research example carries "when" so the field appears in the shape
-        # and not only in the rules — the shape is what the model copies.
-        # Shown only where there is a menu to research from.
+        # Shown only where there is something to research — a menu of new
+        # candidates, or a watchlist with something already on it.
         *(
-            [' {"ticker": "INTC", "side": "research", "when": "now", "reason": "why"},']
-            if menu
+            [' {"ticker": "INTC", "side": "research", "reason": "why"},']
+            if (watchlist or menu)
             else []
         ),
         # The untrack example appears only where untracking is possible. The
@@ -901,7 +977,6 @@ def screen(
     # first: a buy listed after it must see the money already gone, or the
     # agent could commit the same dollar twice.
     research_price = research.get_price()
-    max_research = _max_research_per_day()
     max_watchlist = _max_watchlist()
     researched: list[str] = []
     untracked: list[str] = []
@@ -937,25 +1012,49 @@ def screen(
             # Neither a buy nor a sell: it moves cash but no shares, and what
             # it buys is an opinion rather than a position today.
             #
-            # `when` is the agent's own call on how fresh it needs the answer.
-            # "now" runs the analysis straight after this pass; anything else
-            # waits for tomorrow's sweep. Both cost the same $0.05, because the
-            # work is identical — a price difference would be an invented cost
-            # dressed up as a rule.
-            when = str(order.get("when", "") or "").lower().strip()
-            when = "now" if when in ("now", "immediately", "today", "asap") else "tomorrow"
+            # Since 2026-09-08 there is no sweep to defer to, so every
+            # commission runs right after this pass — there is no separate
+            # "tomorrow" any more; asking later is just choosing a later
+            # next_wakeup and researching then.
+            #
+            # **A ticker already on the watchlist may be re-researched, as
+            # often as the agent is willing to pay for it.** Before
+            # 2026-09-08 that was refused outright, on the assumption that
+            # the sweep was covering it for free every morning. With nothing
+            # covering it automatically any more — holdings included —
+            # refusing a fresh look at something already tracked would mean
+            # nothing could ever be re-analysed at all.
+            #
+            # There used to be a once-a-day guard here too
+            # (`db.has_signal_today`), removed the same day for the same
+            # reason as the daily count below: an analysis finishes in about
+            # twenty minutes, well inside a trading day, and a price nearing
+            # its stop or target is exactly the case where a second look the
+            # same day is the right call, not a wasteful one. `has_signal_
+            # today` still gates the watchdog's own automatic move-triggered
+            # re-analysis (backend/services/watchdog.py) — a different
+            # question, the system deciding whether to auto-trigger, not the
+            # agent deciding whether to ask.
+            #
+            # No cap on how many of these a pass may commission in a day
+            # (removed 2026-09-08, alongside the sweep). The count existed
+            # to pace GPU load within the sweep's fixed pre-open window,
+            # which no longer exists — research is spread across the day as
+            # the agent decides to spend on it, one $0.05 decision at a
+            # time, and cash is what actually bounds it now.
+            already_tracked = ticker in watchlist
             why = None
-            if menu is not None and ticker not in menu:
+            if menu is not None and ticker not in menu and not already_tracked:
                 why = "not on today's candidate list"
-            elif ticker in watchlist:
-                why = "already being researched today"
-            elif len(researched) >= max_research:
-                why = f"the daily research limit of {max_research} is reached"
-            elif len(watchlist) >= max_watchlist:
+            elif ticker in researched:
+                why = "already commissioned this pass"
+            elif not already_tracked and len(watchlist) >= max_watchlist:
                 # Named as a swap rather than a wall, because it is one: an
                 # untrack listed earlier in the same answer would have made
                 # room. The prompt says so too; this is what it reads like
-                # when the agent has not done it.
+                # when the agent has not done it. Only a genuinely new
+                # ticker needs a free slot — re-researching one already
+                # tracked does not grow the list.
                 why = (
                     f"the watchlist is full at {max_watchlist} — untrack something "
                     "first, and list the untrack before this"
@@ -970,27 +1069,27 @@ def screen(
             cash -= research_price
             researched.append(ticker)
             watchlist.add(ticker)
-            accepted.append(
-                {**order, "ticker": ticker, "side": "research", "quantity": 0, "when": when}
-            )
+            accepted.append({**order, "ticker": ticker, "side": "research", "quantity": 0})
             continue
 
         if str(order.get("side", "")).lower().strip() == "untrack":
-            # Moves no cash and no shares. What it changes is what tomorrow's
-            # sweep spends GPU time on, which is why it exists: research adds
-            # to the watchlist permanently and nothing else here removes.
+            # Moves no cash and no shares. What it changes is the watchlist
+            # cap: research adds to it permanently and nothing else here
+            # removes.
             why = None
             if ticker not in watchlist:
                 why = "not being watched, so there is nothing to stop watching"
             elif held.get(ticker, 0.0) > 0:
-                # Enforced here rather than asked for in the prompt, like every
-                # other limit that must hold. A position whose daily analysis
-                # stops is a position with nothing looking for its exit, and
-                # the analysis of a holding is what the charge already pays
-                # for. Sell it first if it is genuinely not worth watching.
+                # Enforced here rather than asked for in the prompt, like
+                # every other limit that must hold. Untracking a holding
+                # would take away the one way left to re-research it —
+                # nothing is analysed automatically any more, held tickers
+                # included, so a tracked position is the only kind you can
+                # still ask about. Sell it first if it is genuinely not
+                # worth watching.
                 why = (
-                    f"holds {held[ticker]:g} of it — sell it first, since a position "
-                    "you stop analysing is one with nothing watching for its exit"
+                    f"holds {held[ticker]:g} of it — sell it first, since untracking it "
+                    "would leave you unable to ever research it again"
                 )
             if why:
                 rejected.append(
@@ -1230,6 +1329,23 @@ def _recent_wakeups() -> list[dict]:
     return out
 
 
+def _recent_changes() -> list[dict]:
+    """Entries from backend/agent_changes.json written in the last few days,
+    oldest first — the same order every other "recent history" list in the
+    prompt uses."""
+    cutoff = datetime.date.today() - datetime.timedelta(days=_CHANGE_NOTES_WINDOW_DAYS)
+    out = []
+    for entry in load_change_notes():
+        try:
+            when = datetime.date.fromisoformat(entry["date"])
+        except ValueError:
+            continue
+        if when >= cutoff:
+            out.append(entry)
+    out.sort(key=lambda e: e["date"])
+    return out
+
+
 def _recent_broker_failures() -> list[dict]:
     """Orders the broker refused on the last few passes.
 
@@ -1280,6 +1396,9 @@ def _decide(book, signals, prices, closed=None, regime_line=None, horizon_days=N
     # Read once and shared with the retry too. The retry is the same pass, so
     # its cadence history has not changed.
     recent_wakeups = _recent_wakeups()
+    # Same reason: the retry is the same pass, and nothing was written to
+    # BotSetting in between it and the first attempt.
+    recent_changes = _recent_changes()
     # What an analysis costs in time, and what is in flight. The agent needs
     # both to choose a wakeup that lands after the answer it is waiting for.
     analysis_minutes = analysis.recent_durations()
@@ -1296,10 +1415,10 @@ def _decide(book, signals, prices, closed=None, regime_line=None, horizon_days=N
     shown = build_prompt(
         book, signals, prices, closed=closed, regime_line=regime_line,
         horizon_days=horizon_days, menu=menu, price=research.get_price(),
-        max_research=_max_research_per_day(),
         watchlist=watchlist, max_watchlist=_max_watchlist(),
         failures=recent_failures, unsettled_cash=unsettled, wakeups=recent_wakeups,
         analysis_minutes=analysis_minutes, running_analyses=running_analyses,
+        changes=recent_changes,
     )
     answer = _ask(shown)
     reasoning, proposed = parse_decision(answer)
@@ -1310,11 +1429,11 @@ def _decide(book, signals, prices, closed=None, regime_line=None, horizon_days=N
     log.info("Re-asking after %d refused order(s): %s", len(rejected), [r.why for r in rejected])
     shown = build_prompt(book, signals, prices, rejected=rejected, closed=closed,
                          regime_line=regime_line, horizon_days=horizon_days, menu=menu,
-                         price=research.get_price(), max_research=_max_research_per_day(),
+                         price=research.get_price(),
                          watchlist=watchlist, max_watchlist=_max_watchlist(),
                          failures=recent_failures, unsettled_cash=unsettled,
                          wakeups=recent_wakeups, analysis_minutes=analysis_minutes,
-                         running_analyses=running_analyses)
+                         running_analyses=running_analyses, changes=recent_changes)
     retry_answer = _ask(shown)
     retry_reasoning, retry_proposed = parse_decision(retry_answer)
     if not retry_proposed:
@@ -1477,45 +1596,28 @@ def format_run_embed(run: AgentRun) -> "Embed":
     return embed
 
 
-# How many analyses the agent may commission in one day, whatever it can
-# afford. Money does not model time: the sweep has to finish before the open,
-# and an agent with cash to burn could otherwise queue more GPU-hours than
-# there are hours.
-_MAX_RESEARCH_PER_DAY = 15
-
-
-def _max_research_per_day() -> int:
-    return _MAX_RESEARCH_PER_DAY
-
-
-# How many tickers may be tracked at once. This is the limit that actually
-# binds, and the daily cap above does not substitute for it: research adds to
-# the watchlist permanently, so a per-day limit bounds the rate of growth and
-# not the total, the same way a daily spending limit does not stop a
-# subscription.
+# How many tickers may be tracked at once.
 #
-# The number comes from the sweep window and a measurement. morning_sweep runs
-# at 11:00 UTC and earnings_check puts its own analyses on the same pool at
-# 13:00, so there are two hours.
+# **This number was derived from morning_sweep's throughput, and that sweep
+# is gone (2026-09-08) — the derivation below is history, not the current
+# reason for 30.** There was also a daily research cap meant to bound how
+# fast the list could grow; that is gone too, since cash already bounds it
+# and the pacing problem it solved (fitting a bulk sweep into a fixed
+# pre-open window) no longer exists. What 30 still does is bound the size of
+# the per-pass watchlist listing itself — a genuinely different, much
+# looser constraint than the one that originally produced this number, and
+# nobody has yet asked what the right number is for that job specifically.
+# Treat 30 as inherited, not chosen, until someone does.
 #
-# Measured 2026-09-02, fourteen tickers at seven concurrent, twice: 42.5 and
-# 43.4 minutes of wall clock, 28 of 28 succeeding. That is **about 3.05 minutes
-# of throughput per analysis**, which fits roughly 39 in the window. Thirty
-# leaves a quarter of it for a slow run, a retry, or a morning when something
-# is wrong.
-#
-# **Do not raise this to match the concurrency.** The two are unrelated: the
-# same measurement found fourteen concurrent takes the same wall clock as seven
-# and doubles each analysis's latency, because the CPU saturates before the
-# GPUs do. Throughput is what fills the window, and throughput did not move.
-#
-# Raise it only alongside the arithmetic: a faster model, more backends, or an
-# earlier sweep. Raising it because the agent keeps asking is how a sweep comes
-# to overrun the open.
-#
-# The previous value was 12, derived from three concurrent analyses at 17.4
-# minutes each — the figures for a pool shared with a second deployment that
-# ended on 2026-09-01. See JOURNEY.md, 2026-09-02.
+# The original derivation, kept for the record: morning_sweep ran at 11:00
+# UTC and earnings_check put its own analyses on the same pool at 13:00, so
+# there were two hours. Measured 2026-09-02, fourteen tickers at seven
+# concurrent, twice: 42.5 and 43.4 minutes of wall clock, 28 of 28
+# succeeding — about 3.05 minutes of throughput per analysis, fitting
+# roughly 39 in the window. Thirty left a quarter of it spare. The previous
+# value was 12, derived from three concurrent analyses at 17.4 minutes each
+# — the figures for a pool shared with a second deployment that ended on
+# 2026-09-01. See JOURNEY.md, 2026-09-02.
 _MAX_WATCHLIST = 30
 
 
@@ -1706,10 +1808,54 @@ def _cancel_resting_exits(ticker: str) -> list[dict]:
                 "kind": trade.exit_kind,
                 "price": trade.limit_price,
                 "quantity": trade.quantity,
+                "client_order_id": trade.client_order_id,
             })
     if cancelled:
         log.info("Cancelled %d resting exit(s) on %s", len(cancelled), ticker)
     return cancelled
+
+
+# How long to wait for a cancelled exit to actually clear before selling into
+# the freed position, and how often to ask. Mirrors _FILL_WAIT_SECONDS below:
+# cancel_order returns as soon as the broker accepts the request, not once the
+# cancel has taken effect, and the confirmation arrives later, over the trade
+# stream. A sell submitted in that gap still sees the old exit as resting and
+# is refused as OPENAPI_ORDER_NOT_SUPPORT_REVERSE_OPTION (AVGO, 2026-09-07 and
+# 2026-09-08, both recovered by _restore_resting_exits but neither sold).
+_CANCEL_WAIT_SECONDS = 20
+_CANCEL_POLL_SECONDS = 2
+
+
+def _await_cancels(client_order_ids: list[str]) -> None:
+    """Block until every one of these exits shows cancelled at the broker, or
+    give up.
+
+    Asking once and hoping is what produced the AVGO failures: the broker
+    answers "accepted" to the cancel immediately and confirms it later, so a
+    sell placed right after asking can still land in the gap. Giving up here
+    is not a failure — it only means the sell that follows might still be
+    refused, and if it is, the normal restore-on-failure path in
+    ``_sell_and_restore_on_failure`` puts the exits straight back. So this
+    trades a little time for a much smaller chance of that round trip, rather
+    than promising it never happens.
+    """
+    pending = {cid for cid in client_order_ids if cid}
+    if not pending:
+        return
+    deadline = time.monotonic() + _CANCEL_WAIT_SECONDS
+    while pending and time.monotonic() < deadline:
+        for client_order_id in list(pending):
+            detail = sandbox_broker.get_order_detail(client_order_id)
+            status = str((detail or {}).get("status") or "").upper()
+            if status in ("CANCELLED", "REJECTED", "FAILED", "EXPIRED"):
+                pending.discard(client_order_id)
+        if pending:
+            time.sleep(_CANCEL_POLL_SECONDS)
+    if pending:
+        log.warning(
+            "%d cancelled exit(s) had not confirmed after %ss — selling anyway",
+            len(pending), _CANCEL_WAIT_SECONDS,
+        )
 
 
 def _sell_and_restore_on_failure(order: dict) -> dict:
@@ -1726,11 +1872,16 @@ def _sell_and_restore_on_failure(order: dict) -> dict:
     could only close through its own stop or target, and the agent could not
     choose to leave one.
 
+    **The cancel is awaited, not merely sent** — see ``_await_cancels``. Until
+    2026-09-08 the code moved straight to the sell, and the broker's own delay
+    in confirming the cancel meant AVGO's sell was refused two days running.
+
     **If the sell fails, the exits go back.** Between the cancel and the fill
     the shares have nothing under them, and leaving them that way would replace
     one defect with a worse one: a naked position that nothing reports.
     """
     cancelled = _cancel_resting_exits(order["ticker"])
+    _await_cancels([c.get("client_order_id") for c in cancelled])
     try:
         return sandbox_broker.place_market_order(
             order["ticker"], order["side"].upper(), order["quantity"]
@@ -1994,7 +2145,11 @@ def run_once() -> AgentRun:
 
     signals = _recent_signals()
     book = agent_book.build_book(price_lookup=get_current_price)
-    prices = _price_map([s.ticker for s in signals] + [h.ticker for h in book.holdings])
+    # The full watchlist, not just signal/holding tickers — since 2026-09-08
+    # the prompt shows a live price for every tracked ticker, held or not, so
+    # the agent can judge staleness for a name nothing has auto-analysed.
+    watchlist = sorted(db.get_watchlist())
+    prices = _price_map([s.ticker for s in signals] + [h.ticker for h in book.holdings] + watchlist)
     book = agent_book.build_book(price_lookup=prices.get)
 
     # What its own past decisions did. Signal decisions are joined in so the
@@ -2139,31 +2294,22 @@ def _skip(why: str) -> "AgentRun":
 
 
 def _commission_research(order: dict, run: "AgentRun") -> None:
-    """Pay for an analysis and put the ticker where the sweep will find it.
+    """Pay for an analysis and run it right after this pass.
 
-    Tracking is how the analysis actually gets run: the morning sweep reads
-    the watchlist, so adding the ticker is the commission. A commissioned name
-    normally waits for that sweep, which is the honest shape — an analyst does
-    not hand over a report the instant you ask for one.
+    **There is no sweep to wait for any more (2026-09-08).** Every
+    commission — a brand new candidate or a fresh look at something already
+    tracked, held or not — is dispatched the same way "research now" already
+    was: straight after this pass finishes, via
+    scheduler._dispatch_immediate_research, and the agent is asked again
+    within the hour, while the market is still open.
 
-    **It is not a guarantee, and the prompt used to claim it was.** The
-    watchdog analyses a tracked ticker on the spot when it makes an unusual
-    price or volume move, and the event-driven pass then asks the agent again.
-    On 2026-09-03 four of five freshly-commissioned names came back within the
-    hour and one was bought the same afternoon. The prompt says "usually
-    tomorrow, sooner on a sharp move" since that day.
+    Tracking is a side effect kept for a not-yet-tracked ticker, not the
+    mechanism any more — nothing reads the watchlist to decide what to
+    analyse today, so adding it here only means the ticker will still be
+    there tomorrow to be researched again.
 
     **Nothing is charged here.** The charge belongs to the analysis and lands
-    when the analysis runs, in propagate_ticker, which already bills every
-    ticker the sweep touches — including the ones held rather than
-    commissioned. Charging at both ends billed a commissioned ticker twice:
-    once for asking and once for the work.
-
-    That leaves the agent able to commission slightly more than its cash on a
-    day the sweep has not happened yet. The daily cap bounds that exposure to
-    fifteen analyses, so at any sane price it is cents against a four-figure
-    budget — a far smaller problem than double-billing, and one the
-    affordability screen still catches in the ordinary case.
+    when it actually runs, in propagate_ticker.
     """
     ticker = order["ticker"]
     try:
@@ -2173,25 +2319,21 @@ def _commission_research(order: dict, run: "AgentRun") -> None:
         run.failed.append((order, "could not be added to the watchlist"))
         return
     run.researched.append(ticker)
-    if order.get("when") == "now":
-        run.research_now.append(ticker)
-    log.info(
-        "Agent commissioned research on %s (%s)",
-        ticker,
-        "now" if order.get("when") == "now" else "next sweep",
-    )
+    run.research_now.append(ticker)
+    log.info("Agent commissioned research on %s", ticker)
 
 
 def _untrack(order: dict, run: "AgentRun") -> None:
-    """Stop analysing a ticker every morning.
+    """Stop being able to research a ticker until it is tracked again.
 
     The counterpart to ``_commission_research``, and the reason the watchlist
     is no longer a ratchet. Commissioning adds a ticker permanently; without
     this, the only way one ever left was somebody typing ``/untrack``.
 
     Nothing is refunded. The analyses already run were paid for and produced
-    the opinions that led here, so there is nothing to give back — what stops
-    is tomorrow's charge, which is the whole point of the decision.
+    the opinions that led here, so there is nothing to give back. Since
+    2026-09-08 nothing is charged automatically either way — what untracking
+    actually frees is a slot, for something worth tracking instead.
 
     ``screen`` has already refused this for a ticker the agent still holds.
     """

@@ -115,7 +115,7 @@
     <section class="card">
       <div class="card-head chart-toolbar">
         <div class="segmented">
-          @for (option of [30, 90, 180, 365]; track option) {
+          @for (option of [7, 30, 90, 180, 365]; track option) {
             <button
               type="button"
               [class.active]="chartDays() === option"

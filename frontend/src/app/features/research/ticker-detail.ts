@@ -45,9 +45,11 @@ export class TickerDetailPage {
   protected readonly isPublic = signal(false);
   protected readonly arming = signal(false);
   protected readonly armMessage = signal<string | null>(null);
-  // 30 days, matching the 1-2 week trade horizon: the window a signal is
-  // actually judged over, rather than six months of context around it.
-  protected readonly chartDays = signal(30);
+  // 7 days, since 2026-09-08 — the intraday bar cache means a week now
+  // renders at 5-minute resolution instead of one candle per day. Longer
+  // windows (30/90/180/365) still fall back to daily bars for whatever part
+  // of the range predates the cache or the experiment itself.
+  protected readonly chartDays = signal(7);
 
   protected readonly signals = computed(() => this.events()?.signals ?? []);
   protected readonly alerts = computed(() => this.events()?.alerts ?? []);

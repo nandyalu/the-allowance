@@ -7,18 +7,18 @@ bodies below touch main-loop-bound resources (the Discord client, the
 analysis semaphore/asyncio.to_thread machinery in backend/services/analysis.py) that
 aren't safe to touch from any other loop.
 
-quiv has no cron/calendar scheduling (interval + delay only) — the five
-daily jobs below approximate a fixed UTC time via interval=86400 plus a
-delay computed to the next occurrence of that time, keeping each job's
-existing internal weekday/Friday-only gate. alert_watchdog is a true
-interval and maps over 1:1.
+quiv has no cron/calendar scheduling (interval, plus an absolute or relative
+start) — the four daily jobs below approximate a fixed UTC time via
+interval=86400 plus run_at set to the next occurrence of that time, keeping
+each job's existing internal weekday/Friday-only gate. alert_watchdog is a
+true interval and maps over 1:1.
 """
 import asyncio
 import datetime
 import logging
 import os
 
-from quiv import Quiv, run_on_main
+from quiv import Quiv, TaskNotActiveError, TaskNotFoundError, run_on_main
 
 from backend.database import db
 from backend.services import (
@@ -26,7 +26,6 @@ from backend.services import (
     analysis,
     candidates,
     journey,
-    listings,
     market_clock,
     quotes,
     regime,
@@ -42,14 +41,23 @@ log = logging.getLogger("trading-experiment.scheduler")
 scheduler = Quiv(pool_size=int(os.environ.get("QUIV_POOL_SIZE", "10")))
 
 
-def _seconds_until(hour: int, minute: int) -> float:
-    """Seconds from now (UTC) until the next occurrence of hour:minute UTC —
-    today if still ahead, tomorrow otherwise."""
+def _next_utc_time(hour: int, minute: int) -> datetime.datetime:
+    """The next occurrence of hour:minute UTC — today if still ahead,
+    tomorrow otherwise.
+
+    Passed to ``add_task`` as ``run_at`` (quiv >=0.10.0,
+    github.com/nandyalu/quiv#66), not converted to a delay in seconds here.
+    This used to return the delay itself, computed against ``now`` read in
+    this function — and quiv read the clock again to turn that delay back
+    into a deadline, so the two reads could disagree by however long fell
+    between them. Passing the instant directly removes the second read
+    entirely.
+    """
     now = datetime.datetime.now(datetime.timezone.utc)
     target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
     if target <= now:
         target += datetime.timedelta(days=1)
-    return (target - now).total_seconds()
+    return target
 
 
 def _format_outcome_line(signal, evaluation: SignalEvaluation, price_now: float) -> str:
@@ -188,7 +196,7 @@ async def _maybe_run_agent() -> None:
 
 
 async def _dispatch_immediate_research(run) -> None:
-    """Run the analyses the agent asked to see today rather than tomorrow.
+    """Run every analysis the agent just commissioned.
 
     **Why the agent gets to choose this at all.** A stock can move enough in a
     day to be worth taking the profit or cutting the loss, and an agent that
@@ -196,14 +204,18 @@ async def _dispatch_immediate_research(run) -> None:
     a tool, not a lever on the experiment — see "What the experiment is for" in
     CLAUDE.md.
 
+    Every commission dispatches this way since 2026-09-08, when the sweep that
+    used to cover the rest of the watchlist "for free" was removed — there is
+    no more "tomorrow" path for a research order to fall back to.
+
     The pass itself cannot do this. ``run_once`` is synchronous and an analysis
     is minutes of async work, so the pass records what it wants and this
     dispatches it.
 
     ``_run_triggered_analyses`` already asks the agent again once the analyses
     land, which is the point — the answers are worth nothing if nobody looks at
-    them until the morning. The 30-minute cooldown on that path is what stops a
-    pass that researches "now" from re-planning the book on a loop.
+    them soon. The 30-minute cooldown on that path is what stops a research
+    order from re-planning the book on a loop.
     """
     # getattr, because tests stand in for AgentRun with a small fake and a
     # dispatch that crashes on one would take the whole pass with it.
@@ -246,9 +258,19 @@ def _replace_wakeup_alarm(when: datetime.datetime | None) -> None:
     while the first was still pending, and both would fire. Removing first makes
     "at most one alarm" true without having to know which path ran.
 
-    A time already past fires at once. That is the container having been down
-    when the wakeup came due, and the answer is to ask the agent now, not to
-    drop the wakeup it chose.
+    A time already past fires at once — quiv's own guarantee for ``run_at``
+    now, not a clamp we compute. That covers the container having been down
+    when the wakeup came due: the answer is to ask the agent now, not to drop
+    the wakeup it chose.
+
+    **Passes ``when`` straight through as ``run_at`` rather than converting it
+    to a delay ourselves** (quiv >=0.10.0, github.com/nandyalu/quiv#66, filed
+    from this exact call site). The old form read the clock twice — once here,
+    once inside quiv when it computed the deadline — and the gap between the
+    two reads was a small, real error nothing here could remove. ``run_at``
+    also needs no ``interval`` for a one-off any more (quiv >=0.9.0, #65); the
+    ``interval=1`` used to exist only because quiv rejected a non-positive one
+    even though a run-once task never reads it.
     """
     global _wakeup_task_id
     if _wakeup_task_id is not None:
@@ -260,19 +282,16 @@ def _replace_wakeup_alarm(when: datetime.datetime | None) -> None:
         _wakeup_task_id = None
     if when is None:
         return
-    delay = max(0.0, (when - market_clock.now_et()).total_seconds())
     _wakeup_task_id = scheduler.add_task(
         task_name=WAKEUP_TASK_NAME,
         func=agent_wakeup_alarm,
-        # Ignored for a one-off, which deletes itself after it fires, but quiv
-        # rejects a non-positive interval whatever run_once says.
-        interval=1,
-        delay=delay,
+        run_at=when,
         run_once=True,
     )
-    log.info(
-        "Wakeup alarm set for %s (in %.0f min)", when.strftime("%a %-I:%M %p"), delay / 60
-    )
+    # For the log line only — quiv reads its own clock for the actual
+    # scheduling decision, so a few milliseconds of drift here costs nothing.
+    minutes = max(0.0, (when - market_clock.now_et()).total_seconds()) / 60
+    log.info("Wakeup alarm set for %s (in %.0f min)", when.strftime("%a %-I:%M %p"), minutes)
 
 
 def restore_wakeup_alarm() -> None:
@@ -297,6 +316,56 @@ def restore_wakeup_alarm() -> None:
     _replace_wakeup_alarm(wanted.astimezone(market_clock.US_MARKET_TZ))
 
 
+# How many entries in backend/agent_changes.json had already been announced as
+# of the last startup this container saw. A count rather than the newest date,
+# because the file can gain two entries with the same date in one deploy (it
+# did, on 2026-09-08) — a second deploy later the same day would then look
+# like "nothing new" if compared by date. The file only ever grows by
+# appending (see agent.describe_recent_changes), so a rising count is an
+# unambiguous "the agent has not been told about this yet," however the dates
+# line up.
+_CHANGES_SEEN_COUNT_KEY = "agent_changes_seen_count"
+
+
+def wake_agent_for_new_changes() -> None:
+    """If a change note was written down since this container last started,
+    wake the agent now rather than making it wait for its own next chosen
+    time — which can be up to four days out.
+
+    Called once from register_jobs, after restore_wakeup_alarm, so there is
+    always a pending alarm to pull forward. **Never awaited from the lifespan
+    that calls register_jobs**: pulling the alarm forward, or scheduling a
+    fresh one-off task, both just hand off to quiv's own worker thread and
+    return at once — a slow decision pass can never hold up the app coming
+    up.
+
+    Losing the seen-count to a database reset is an acceptable failure mode:
+    the worst case is one extra wakeup after the reset, re-announcing
+    something the agent may already have seen. Never waking it for a real
+    change would be the worse failure, and there is no way to have neither
+    without a marker that survives every reset a marker in the database
+    cannot.
+    """
+    changes = agent.load_change_notes()
+    seen = int(db.get_setting(_CHANGES_SEEN_COUNT_KEY) or 0)
+    if len(changes) <= seen:
+        return
+    db.set_setting(_CHANGES_SEEN_COUNT_KEY, str(len(changes)))
+    log.info(
+        "%d new agent change note(s) since this container last started — waking the agent now",
+        len(changes) - seen,
+    )
+    if not wake_agent_now():
+        # No pending alarm to pull forward — should not happen right after
+        # restore_wakeup_alarm, but a fresh one-off is the honest fallback
+        # rather than silently doing nothing. No interval needed for a
+        # one-off since quiv 0.9.0 (#65) — see _replace_wakeup_alarm.
+        scheduler.add_task(
+            task_name="agent_wakeup_new_change", func=agent_wakeup_alarm,
+            delay=0, run_once=True,
+        )
+
+
 def wake_agent_now() -> bool:
     """Pull the pending alarm forward instead of letting it fire stale.
 
@@ -307,14 +376,23 @@ def wake_agent_now() -> bool:
 
     Returns False when there is no alarm to pull, which leaves the caller to run
     the pass itself.
+
+    **Catches the two specific errors this race can raise, not every
+    exception** (quiv >=0.9.0, github.com/nandyalu/quiv#67, filed from this
+    exact call site). Before that fix, an already-fired one-off raised
+    ``HandlerNotRegisteredError`` — a name that means something else — instead
+    of ``TaskNotFoundError``. A genuine ``HandlerNotRegisteredError`` here
+    would mean the handler was never registered at all, which is a real bug
+    and should not be swallowed alongside the two harmless races.
     """
     global _wakeup_task_id
     if _wakeup_task_id is None:
         return False
     try:
         scheduler.run_task_immediately(_wakeup_task_id)
-    except Exception:
-        # Already running or already fired. Either way a pass is happening.
+    except (TaskNotFoundError, TaskNotActiveError):
+        # Already fired (deleted itself) or already running. Either way a
+        # pass is happening.
         log.debug("Could not pull the wakeup alarm forward")
         return False
     _wakeup_task_id = None
@@ -489,8 +567,9 @@ async def _daily_signals_job() -> None:
     """21:30 UTC (17:30 ET): grade what matured, then write the journal.
 
     Stays after the close because grading reads the day's closing price. The
-    watchlist sweep used to run here too and now runs in the morning instead —
-    see _morning_sweep_job.
+    watchlist sweep used to run here, then moved to the morning, and as of
+    2026-09-08 does not run automatically at all — the agent commissions
+    research itself now, on whatever schedule it chooses. See JOURNEY.md.
     """
     # Weekday-only: US markets are closed Sat/Sun, running would just waste a GPU pass.
     if datetime.datetime.now(datetime.timezone.utc).weekday() >= 5:
@@ -512,57 +591,12 @@ def daily_signals() -> None:
     run_on_main(_daily_signals_job)
 
 
-async def _morning_sweep_job() -> None:
-    """11:00 UTC (07:00 ET): analyse the watchlist before the market opens.
-
-    Moved here from 21:30 UTC, and the reason is news rather than prices. The
-    newest completed session is the same one either way — an evening run and
-    the next morning's run both reason over yesterday's bar — but an evening
-    run at 17:30 ET misses the entire overnight cycle, which is when earnings
-    are released. Its signals then sat unchanged until the agent acted on them
-    sixteen hours later.
-
-    07:00 rather than closer to the open, for two reasons that have nothing to
-    do with GPU time. The pre-open window is already busy — morning_regime at
-    12:45 and earnings_check at 13:00, the second of which
-    runs its own analyses on the same pool — and a sweep that overran into the
-    agent's 13:35 decision would hand it half a picture. This leaves two and a
-    half hours of margin for a slow run or a retry.
-
-    Signals recorded before the open are priced at the last completed close
-    rather than a pre-market print — see analysis.signal_price.
-    """
-    if datetime.datetime.now(datetime.timezone.utc).weekday() >= 5:
-        return
-    if db.get_setting("daily_sweep") == "off":
-        return  # event-triggered analyses only (/dailysweep)
-    # Dispatched together, not one await at a time: a sequential loop keeps
-    # exactly one LLM request in flight regardless of how many backends the
-    # Ollama pool has, so every GPU past the first sits idle for the whole
-    # sweep. analysis.run_analyses bounds concurrency with the shared semaphore
-    # (TRADINGAGENTS_MAX_CONCURRENT_ANALYSES) instead.
-    # Delisted and halted tickers are dropped here rather than inside
-    # run_analyses: an analysis of something with no market costs minutes of
-    # GPU and then cannot even be recorded, because there is no price to record
-    # it against.
-    inactive = set(listings.inactive_tickers())
-    tickers = [t for t in db.get_watchlist() if t not in inactive]
-    skipped = sorted(set(db.get_watchlist()) & inactive)
-    if skipped:
-        log.info("Daily sweep skipping %s — no market data", ", ".join(skipped))
-    await analysis.run_analyses(
-        tickers,
-        on_failure=lambda ticker: notify(f"Daily analysis failed for {ticker} — check the logs."),
-        trigger="sweep",
-    )
-
-    # Then the same tickers through a second model, when one is being
-    # evaluated. Chained to this job rather than scheduled separately so the
-    # two models always see the same day, the same prices and the same news —
-    # a comparison run on its own clock would drift onto a different session
-    # and measure the market as much as the model.
-def morning_sweep() -> None:
-    run_on_main(_morning_sweep_job)
+# morning_sweep (11:00 UTC, the whole watchlist analysed whether the agent
+# would have asked or not) was removed 2026-09-08. The agent now commissions
+# every analysis itself, held tickers included — see JOURNEY.md for the
+# reasoning and agent._commission_research for what replaced the dispatch
+# this job used to do. trigger="sweep" stays a valid value on old Signal
+# rows; it is simply never written again.
 
 
 async def _place_queued_exits() -> None:
@@ -694,13 +728,15 @@ def register_jobs() -> None:
     skipping it would leave an agent that never wakes and reports nothing
     wrong."""
     scheduler.add_task(task_name="alert_watchdog", func=alert_watchdog, interval=900)
-    scheduler.add_task(task_name="daily_signals", func=daily_signals, interval=86400, delay=_seconds_until(21, 30))
-    scheduler.add_task(task_name="morning_sweep", func=morning_sweep, interval=86400, delay=_seconds_until(11, 0))
-    scheduler.add_task(task_name="earnings_check", func=earnings_check, interval=86400, delay=_seconds_until(13, 0))
-    scheduler.add_task(task_name="morning_regime", func=morning_regime, interval=86400, delay=_seconds_until(12, 45))
-    scheduler.add_task(task_name="weekly_digest", func=weekly_digest, interval=86400, delay=_seconds_until(23, 0))
+    scheduler.add_task(task_name="daily_signals", func=daily_signals, interval=86400, run_at=_next_utc_time(21, 30))
+    scheduler.add_task(task_name="earnings_check", func=earnings_check, interval=86400, run_at=_next_utc_time(13, 0))
+    scheduler.add_task(task_name="morning_regime", func=morning_regime, interval=86400, run_at=_next_utc_time(12, 45))
+    scheduler.add_task(task_name="weekly_digest", func=weekly_digest, interval=86400, run_at=_next_utc_time(23, 0))
     # The backstop for the alarm, not the alarm itself. See _agent_wakeup_job.
     scheduler.add_task(task_name="agent_wakeup", func=agent_wakeup, interval=60)
     # Last, so the agent's alarm is rebuilt only once everything it may need is
     # registered — a restored wakeup can be due immediately.
     restore_wakeup_alarm()
+    # After the alarm, not before: this pulls that alarm forward, so it needs
+    # one to already exist.
+    wake_agent_for_new_changes()

@@ -11,6 +11,7 @@ import datetime
 from zoneinfo import ZoneInfo
 
 import pytest
+import quiv as quiv_lib  # the `quiv` fixture below shadows the module name
 
 from backend.tasks import scheduler
 
@@ -28,13 +29,19 @@ class _Run:
 
 @pytest.fixture
 def quiv(monkeypatch):
-    """Records what the scheduler was asked to do."""
+    """Records what the scheduler was asked to do.
+
+    ``add_task`` no longer requires ``interval`` for a one-off (quiv 0.9.0,
+    #65) and a wakeup is scheduled with ``run_at`` rather than ``delay``
+    (quiv 0.10.0, #66) — see _replace_wakeup_alarm. The fallback task in
+    wake_agent_for_new_changes still uses a plain ``delay``, so this records
+    whichever of the two a call actually passed.
+    """
     calls = {"added": [], "removed": [], "fired": []}
 
-    def add_task(task_name, func, interval, delay=0, run_once=False, **kw):
-        assert run_once, "a wakeup must not repeat"
-        assert interval > 0, "quiv rejects a non-positive interval even for a one-off"
-        calls["added"].append(delay)
+    def add_task(task_name, func, **kw):
+        assert kw.get("run_once"), "a wakeup must not repeat"
+        calls["added"].append(kw.get("run_at", kw.get("delay")))
         return f"task-{len(calls['added'])}"
 
     monkeypatch.setattr(scheduler.scheduler, "add_task", add_task)
@@ -51,15 +58,20 @@ def quiv(monkeypatch):
 def test_the_alarm_is_set_for_the_time_the_agent_chose(quiv):
     scheduler._replace_wakeup_alarm(_et(10, 30))
 
-    assert quiv["added"] == [1800]  # half an hour, in seconds
+    assert quiv["added"] == [_et(10, 30)]  # run_at, passed straight through
 
 
 def test_a_time_already_past_fires_at_once(quiv):
     """The container was down when the wakeup came due. Ask the agent now
-    rather than dropping the time it chose."""
+    rather than dropping the time it chose.
+
+    This used to be our own clamp (``max(0.0, ...)``) computed against a
+    delay in seconds. It is now quiv's own guarantee for ``run_at`` — a past
+    instant runs at once — so this just confirms the past time is passed
+    through unchanged rather than dropped or clamped here."""
     scheduler._replace_wakeup_alarm(_et(9, 0))
 
-    assert quiv["added"] == [0]
+    assert quiv["added"] == [_et(9, 0)]
 
 
 def test_setting_an_alarm_replaces_the_pending_one(quiv):
@@ -143,16 +155,43 @@ def test_pulling_forward_with_no_alarm_reports_it(quiv):
     assert scheduler.wake_agent_now() is False
 
 
-def test_a_failed_pull_reports_it(quiv, monkeypatch):
-    """Already running or already fired. Either way a pass is happening, and
-    the caller must not start a second."""
+def test_an_already_running_alarm_reports_it(quiv, monkeypatch):
+    """Already running. A pass is happening, and the caller must not start a
+    second alongside it."""
     scheduler._replace_wakeup_alarm(_et(10, 30))
     monkeypatch.setattr(
         scheduler.scheduler, "run_task_immediately",
-        lambda tid: (_ for _ in ()).throw(RuntimeError("not active")),
+        lambda tid: (_ for _ in ()).throw(scheduler.TaskNotActiveError("running")),
     )
 
     assert scheduler.wake_agent_now() is False
+
+
+def test_an_already_fired_alarm_reports_it(quiv, monkeypatch):
+    """Already fired and deleted itself. Same outcome, different quiv error —
+    both must be caught (quiv 0.9.0 made this one TaskNotFoundError; it used
+    to be the misleading HandlerNotRegisteredError, see #67)."""
+    scheduler._replace_wakeup_alarm(_et(10, 30))
+    monkeypatch.setattr(
+        scheduler.scheduler, "run_task_immediately",
+        lambda tid: (_ for _ in ()).throw(scheduler.TaskNotFoundError("gone")),
+    )
+
+    assert scheduler.wake_agent_now() is False
+
+
+def test_a_genuinely_unregistered_handler_is_not_swallowed(quiv, monkeypatch):
+    """HandlerNotRegisteredError means something else entirely — the handler
+    was never registered at all, a real bug — and must not be read as one of
+    the two harmless races above."""
+    scheduler._replace_wakeup_alarm(_et(10, 30))
+    monkeypatch.setattr(
+        scheduler.scheduler, "run_task_immediately",
+        lambda tid: (_ for _ in ()).throw(quiv_lib.HandlerNotRegisteredError("no handler")),
+    )
+
+    with pytest.raises(quiv_lib.HandlerNotRegisteredError):
+        scheduler.wake_agent_now()
 
 
 # --- never two passes at once --------------------------------------------------
@@ -190,3 +229,93 @@ def test_a_failed_pass_still_leaves_an_alarm(quiv, monkeypatch):
     asyncio.run(scheduler._run_agent_pass_locked("test"))
 
     assert len(quiv["added"]) == 1
+
+
+# --- waking for a new change note -----------------------------------------------
+
+
+@pytest.fixture
+def settings(monkeypatch):
+    """A fake BotSetting store, the shape test_research_charge.py uses."""
+    store: dict[str, str] = {}
+    monkeypatch.setattr(scheduler.db, "get_setting", lambda k: store.get(k))
+    monkeypatch.setattr(scheduler.db, "set_setting", lambda k, v: store.__setitem__(k, v))
+    return store
+
+
+def _stub_changes(monkeypatch, n):
+    monkeypatch.setattr(
+        scheduler.agent, "load_change_notes",
+        lambda: [{"date": "2026-09-08", "message": f"change {i}"} for i in range(n)],
+    )
+
+
+def test_no_file_means_no_wake(quiv, settings, monkeypatch):
+    _stub_changes(monkeypatch, 0)
+
+    scheduler.wake_agent_for_new_changes()
+
+    assert quiv["fired"] == [] and quiv["added"] == []
+    assert settings == {}
+
+
+def test_a_new_entry_pulls_the_pending_alarm_forward(quiv, settings, monkeypatch):
+    """The ordinary case: restore_wakeup_alarm already ran, so there is an
+    alarm to pull forward rather than a fresh task to add."""
+    scheduler._replace_wakeup_alarm(_et(10, 30))
+    quiv["added"].clear()  # only the change-note trigger's own calls matter below
+    _stub_changes(monkeypatch, 2)
+
+    scheduler.wake_agent_for_new_changes()
+
+    assert quiv["fired"] == ["task-1"]
+    assert quiv["added"] == []
+    assert settings["agent_changes_seen_count"] == "2"
+
+
+def test_nothing_new_does_not_wake_again(quiv, settings, monkeypatch):
+    """Once the count has been recorded, the same two entries must not fire a
+    second wakeup on the next startup."""
+    settings["agent_changes_seen_count"] = "2"
+    _stub_changes(monkeypatch, 2)
+
+    scheduler.wake_agent_for_new_changes()
+
+    assert quiv["fired"] == [] and quiv["added"] == []
+
+
+def test_a_grown_file_wakes_again(quiv, settings, monkeypatch):
+    scheduler._replace_wakeup_alarm(_et(10, 30))
+    quiv["added"].clear()
+    settings["agent_changes_seen_count"] = "2"
+    _stub_changes(monkeypatch, 3)
+
+    scheduler.wake_agent_for_new_changes()
+
+    assert quiv["fired"] == ["task-1"]
+    assert settings["agent_changes_seen_count"] == "3"
+
+
+def test_no_pending_alarm_falls_back_to_a_fresh_one_off_task(quiv, settings, monkeypatch):
+    """Should not happen right after restore_wakeup_alarm, but a fresh task is
+    the honest fallback rather than silently doing nothing."""
+    _stub_changes(monkeypatch, 1)
+
+    scheduler.wake_agent_for_new_changes()
+
+    assert quiv["fired"] == []
+    assert quiv["added"] == [0]  # run now, as a one-off
+
+
+def test_same_dates_two_deploys_apart_still_wakes(quiv, settings, monkeypatch):
+    """The reason this counts entries instead of comparing dates: a second
+    deploy the same day adds an entry that shares its date with one already
+    seen, and a date comparison alone would call that "nothing new"."""
+    settings["agent_changes_seen_count"] = "2"
+    scheduler._replace_wakeup_alarm(_et(10, 30))
+    quiv["added"].clear()
+    _stub_changes(monkeypatch, 3)  # all three share "2026-09-08"
+
+    scheduler.wake_agent_for_new_changes()
+
+    assert quiv["fired"] == ["task-1"]

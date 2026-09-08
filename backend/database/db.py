@@ -11,6 +11,7 @@ from backend.database.models import (
     Alert,
     BotSetting,
     DailyBar,
+    IntradayBar,
     Signal,
     SignalReport,
     TickerPrice,
@@ -100,6 +101,7 @@ def record_signal(
     row = Signal(
         ticker=ticker,
         signal_date=datetime.date.today(),
+        created_at=datetime.datetime.now(datetime.timezone.utc),
         decision=decision,
         rationale=rationale,
         time_horizon_text=time_horizon_text,
@@ -158,6 +160,23 @@ def resolve_signal(
     row.outcome_vs_benchmark = outcome_vs_benchmark
     row.price_target_hit = price_target_hit
     row.evaluated_at = datetime.datetime.now(datetime.timezone.utc)
+    _session.add(row)
+    _session.commit()
+
+
+@read_session
+def get_signals_missing_created_at(*, _session: Session = None) -> list[Signal]:
+    """Rows written before ``created_at`` existed — the input to
+    backend/scripts/backfill_signal_timestamps.py."""
+    return list(_session.exec(select(Signal).where(Signal.created_at.is_(None))).all())
+
+
+@write_session
+def set_signal_created_at(signal_id: int, created_at: datetime.datetime, *, _session: Session = None) -> None:
+    row = _session.get(Signal, signal_id)
+    if row is None:
+        return
+    row.created_at = created_at
     _session.add(row)
     _session.commit()
 
@@ -303,6 +322,66 @@ def upsert_daily_bars(ticker: str, bars: list[dict], *, _session: Session = None
         row = _session.get(DailyBar, (ticker, bar["date"]))
         if row is None:
             row = DailyBar(ticker=ticker, **bar)
+        else:
+            for field in ("open", "high", "low", "close", "volume"):
+                setattr(row, field, bar[field])
+        _session.add(row)
+        written += 1
+    _session.commit()
+    return written
+
+
+# --- Intraday bar cache (backend/services/intraday.py) -----------------------
+
+
+@read_session
+def get_intraday_bars(
+    ticker: str,
+    start: datetime.datetime,
+    end: datetime.datetime | None = None,
+    *,
+    _session: Session = None,
+) -> list[IntradayBar]:
+    """Cached 1-minute bars in [start, end], oldest first. ``end`` defaults to
+    open-ended, matching ``get_daily_bars``."""
+    query = select(IntradayBar).where(
+        IntradayBar.ticker == ticker, IntradayBar.timestamp >= start
+    )
+    if end is not None:
+        query = query.where(IntradayBar.timestamp <= end)
+    return list(_session.exec(query.order_by(IntradayBar.timestamp)).all())
+
+
+@read_session
+def get_intraday_coverage(
+    ticker: str, *, _session: Session = None
+) -> tuple[datetime.datetime | None, datetime.datetime | None]:
+    """(oldest, newest) cached minute timestamps for a ticker, (None, None)
+    when empty. Lets a caller decide whether a backfill has already run for
+    this ticker without fetching anything."""
+    row = _session.exec(
+        select(func.min(IntradayBar.timestamp), func.max(IntradayBar.timestamp)).where(
+            IntradayBar.ticker == ticker
+        )
+    ).one()
+    return (row[0], row[1]) if row else (None, None)
+
+
+@write_session
+def upsert_intraday_bars(ticker: str, bars: list[dict], *, _session: Session = None) -> int:
+    """Insert or replace 1-minute bars. ``bars`` items carry
+    timestamp/open/high/low/close/volume.
+
+    Replacing rather than skipping duplicates for the same reason
+    ``upsert_daily_bars`` does: the most recent fetch of a given minute is the
+    one to trust, and re-running a backfill over an already-covered range
+    must be harmless rather than an error.
+    """
+    written = 0
+    for bar in bars:
+        row = _session.get(IntradayBar, (ticker, bar["timestamp"]))
+        if row is None:
+            row = IntradayBar(ticker=ticker, **bar)
         else:
             for field in ("open", "high", "low", "close", "volume"):
                 setattr(row, field, bar[field])

@@ -19,6 +19,7 @@ import {
   LineStyle,
   SeriesMarker,
   Time,
+  UTCTimestamp,
   createChart,
   createSeriesMarkers,
 } from 'lightweight-charts';
@@ -40,6 +41,16 @@ const COLORS = {
   stop: '#dc2626',
   target: '#16a34a',
 };
+
+/** An ISO datetime (or a bare "YYYY-MM-DD" date, read as midnight UTC — the
+ * same convention the backend uses for a daily bar) as the Unix-seconds
+ * timestamp lightweight-charts needs to place a point at its real time of
+ * day. Added 2026-09-08 alongside the intraday bar cache: a bare date string
+ * only ever engages the chart's business-day mode, which cannot represent a
+ * sub-day position at all. */
+function toUnixSeconds(iso: string): UTCTimestamp {
+  return Math.floor(new Date(iso).getTime() / 1000) as UTCTimestamp;
+}
 
 /**
  * Candlesticks with the analysis drawn on top of them.
@@ -164,11 +175,13 @@ export class PriceChart {
     const data: CandlestickData<Time>[] = this.bars()
       // A bar with a missing price throws inside the candlestick renderer and
       // takes the entire chart down with it, not just the one bar. The backend
-      // drops these too (get_price_history); this is the second line of
+      // drops these too (get_chart_bars); this is the second line of
       // defense, because a blank chart is a much worse failure than a gap.
       .filter((bar) => [bar.open, bar.high, bar.low, bar.close].every(Number.isFinite))
       .map((bar) => ({
-        time: bar.date as Time,
+        // A real Unix timestamp, not `bar.date` — the chart's business-day
+        // mode cannot place a sub-day candle at all, only on some date.
+        time: bar.timestamp as UTCTimestamp,
         open: bar.open,
         high: bar.high,
         low: bar.low,
@@ -192,7 +205,10 @@ export class PriceChart {
       const buyish = BUYISH.has(signal.decision);
       const sellish = SELLISH.has(signal.decision);
       markers.push({
-        time: signal.signal_date as Time,
+        // created_at is null on a row with no trace to recover a time from
+        // (backend/scripts/backfill_signal_timestamps.py) — signal_date at
+        // midnight UTC is the honest fallback, not a guess at a real time.
+        time: toUnixSeconds(signal.created_at ?? signal.signal_date),
         position: buyish ? 'belowBar' : 'aboveBar',
         color: buyish ? COLORS.buy : sellish ? COLORS.sell : COLORS.hold,
         shape: buyish ? 'arrowUp' : sellish ? 'arrowDown' : 'circle',
@@ -203,7 +219,7 @@ export class PriceChart {
     for (const trade of this.trades()) {
       const isBuy = trade.side === 'buy';
       markers.push({
-        time: trade.date as Time,
+        time: toUnixSeconds(trade.filled_at),
         position: isBuy ? 'belowBar' : 'aboveBar',
         color: COLORS.trade,
         shape: 'square',
@@ -213,8 +229,7 @@ export class PriceChart {
 
     for (const alert of this.alerts()) {
       markers.push({
-        // Alerts carry a timestamp; the chart's axis is daily bars.
-        time: alert.created_at.slice(0, 10) as Time,
+        time: toUnixSeconds(alert.created_at),
         position: 'aboveBar',
         color: COLORS.alert,
         shape: 'circle',
@@ -222,7 +237,9 @@ export class PriceChart {
       });
     }
 
-    return markers.sort((a, b) => String(a.time).localeCompare(String(b.time)));
+    // Numeric now that time is a real Unix timestamp rather than a
+    // lexicographically-sortable date string.
+    return markers.sort((a, b) => (a.time as number) - (b.time as number));
   }
 
   private applyPriceLines(): void {

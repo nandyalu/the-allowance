@@ -11,8 +11,14 @@ Sent alerts are recorded in the ``alert`` table keyed by ``dedupe_key`` so a
 15-minute loop never repeats itself (per ticker per day for moves/volume/
 stops, once ever per signal for targets). Everything here is blocking
 (yfinance + DB) — call via asyncio.to_thread.
+
+Since 2026-09-08, ``scan_for_alerts`` also tops up the intraday bar cache
+(``backend.services.intraday``) for every tracked ticker — piggybacking on
+this loop's existing 15-minute cadence and tracked-ticker list rather than
+adding a second schedule for the same job.
 """
 import datetime
+import logging
 from dataclasses import dataclass
 from zoneinfo import ZoneInfo
 
@@ -21,9 +27,11 @@ from tradingagents.dataflows.stockstats_utils import yf_retry
 
 from backend.database import db
 from backend.database.models import Signal
-from backend.services import bars, listings, ticker_book
+from backend.services import bars, intraday, listings, ticker_book
 from backend.services.ticker_book import AgentPosition
 from backend.services.signals import price_crossed_target
+
+log = logging.getLogger("trading-experiment.watchdog")
 
 US_MARKET_TZ = ZoneInfo("America/New_York")
 _MARKET_OPEN = datetime.time(9, 30)
@@ -266,6 +274,15 @@ def scan_for_alerts() -> tuple[list[AlertCandidate], list[str]]:
     to_analyze: list[str] = []
 
     for ticker in _tracked_tickers():
+        # Independent of the daily snapshot below, and before its own
+        # "continue" — a stale daily bar (fetch failed, holiday) must not
+        # also block topping up the intraday cache, a completely separate
+        # data source with its own failure mode. Best-effort: a bad tick here
+        # costs one ticker fifteen minutes of intraday detail, not the scan.
+        try:
+            intraday.capture_recent(ticker)
+        except Exception:
+            log.exception("Intraday capture failed for %s", ticker)
         snapshot = get_daily_snapshot(ticker)
         if snapshot is None or snapshot.last_bar_date != today:
             continue  # no fresh bar (fetch failed, holiday) — never alert on stale closes

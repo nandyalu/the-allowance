@@ -1,0 +1,18 @@
+[
+  {
+    "date": "2026-09-08",
+    "message": "Selling now waits for a cancelled stop/target to actually clear before it sells, instead of guessing a fixed pause. A slow cancel confirmation was blocking your sells (AVGO, twice)."
+  },
+  {
+    "date": "2026-09-08",
+    "message": "You are now told here, in this section, whenever something you asked for with a note has been built."
+  },
+  {
+    "date": "2026-09-08",
+    "message": "The 'orders the broker would not take recently' section no longer tells you a retry will usually fail. Judge each failure yourself: some are standing restrictions (unsettled cash, a closed market) that will refuse the same order again, others were about timing or a broker hiccup and can succeed now — do not let a failure alone talk you out of a decision that still holds."
+  },
+  {
+    "date": "2026-09-08",
+    "message": "Nothing is analysed automatically any more — not even what you hold. You now see a live price and last-analysed date for every tracked ticker, and you decide when a fresh $0.05 look is worth it, held or not. You may re-research something you already track as often as you judge it worth paying for, same day included, and there is no daily limit on how many analyses you may commission — only your cash."
+  }
+]

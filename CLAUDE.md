@@ -313,8 +313,18 @@ window fits roughly 39.
 **What is still missing is an ageing rule** — nothing drops a name the agent has
 stopped holding and stopped asking about. At the cap the agent must trade one
 name's coverage for another's, which is a decision it can make but is never
-prompted to revisit. `_MAX_RESEARCH_PER_DAY = 15` does not help, because that
-limit is per-day and the watchlist is cumulative.
+prompted to revisit.
+
+**The paragraphs above describe the sweep, and the sweep no longer runs
+(2026-09-08).** The two-hour pre-open window, the 39-analysis throughput
+figure, and `_MAX_RESEARCH_PER_DAY = 15` were all about fitting a forced daily
+analysis of the whole watchlist into that window before the open. There is no
+such analysis now — the agent commissions research itself, spread across the
+day, bounded by cash rather than a count — so none of that arithmetic decides
+anything current. The GPU throughput numbers themselves are still real
+measurements and still the reference for how fast this hardware analyses a
+ticker; only the reasoning that turned them into `_MAX_WATCHLIST = 30` no
+longer applies. See the 2026-09-08 entry in JOURNEY.md.
 
 **Sampling stays at Gemma's published values** — temperature 1 / top_k 64 /
 top_p 0.95 (<https://ollama.com/library/gemma4>). `gemma4-e2b-96k` briefly ran
@@ -576,7 +586,11 @@ One prompt per decision pass, assembled by `agent.build_prompt()`. In order:
    chooses its own next wakeup, which is a question about the time.
 2. **The regime line** when one is available — VIX, SPY against its 200-day
    average, the yield curve, as one sentence.
-3. **The account**: total budget, uninvested cash, total equity with its return
+3. **Recent changes to the app**, when any were written down in the last three
+   days — see "Telling the agent when a note was answered" below. Placed early
+   because it is a fact about the world the agent should read before the
+   numbers, the same reason the regime line goes here.
+4. **The account**: total budget, uninvested cash, total equity with its return
    against the budget, realized profit — plus how much of the cash is unsettled,
    when any is. Unsettled money is spendable but a buy made with it cannot carry
    its stop and target in the same order, which is the real restriction on a
@@ -584,30 +598,75 @@ One prompt per decision pass, assembled by `agent.build_prompt()`. In order:
    The simulated account holds $1,000,000 and the agent is given a small
    fraction of it; if that number reached the prompt the budget would be
    meaningless.
-4. **Holdings**, one line each: quantity, average cost, current price, market
+5. **Holdings**, one line each: quantity, average cost, current price, market
    value, unrealized profit, share of the account, days held, what is resting
    at the broker under it, and what selling all of it would raise. A holding
    with no resting exit says `NOTHING is resting to close it` — the agent
    cannot move an exit it cannot see, nor notice one that was never placed.
-5. **Recent analyst signals**, up to 12 from the last 3 days, filtered to the
+6. **Recent analyst signals**, up to 12 from the last 3 days, filtered to the
    model the app is configured to use. Each carries the decision, the current
    price, the suggested entry, stop and target, the model's own chance of
    working, the risk/reward and the expected value in R-multiples — plus, in
    plain words, how many whole shares the cash could buy. That last part is
    computed in Python, because the model proposed $1,944 of buys against
    $1,000 of cash on a live run when it was left to do the arithmetic.
-6. **Its own track record**: closed trades, how many were profitable, the net
+7. **Every tracked ticker**, held or watched-only, one line each: current
+   price, and either "Never analysed" or the date and price of the last
+   analysis, the percentage moved since, and what that analysis said. Since
+   2026-09-08 nothing is analysed on a schedule — this is the only ambient
+   signal telling the agent a name has gone stale and might be worth a fresh
+   $0.05 look, or that a name has never been looked at at all.
+8. **Its own track record**: closed trades, how many were profitable, the net
    result, the average holding period, and the last six individually with what
    the analyst had said at entry. Once it has bought on a Hold signal twice, it
    is told how that worked out specifically — that being the pattern it
    actually falls into.
-7. **How long an analysis takes**, from its own recent runs, and what is being
+9. **How long an analysis takes**, from its own recent runs, and what is being
    analysed right now with how long it has been running. It cannot plan a
    wakeup around research it ordered without both.
-8. **Its recent wakeups**, and whether each led to an action. Feedback rather
-   than a limit: waking costs nothing, so pricing it would be an invented cost,
-   and whether the agent learns to space them is a result worth having.
-9. **The rules** (below), then the JSON shape to answer in.
+10. **Its recent wakeups**, and whether each led to an action. Feedback rather
+    than a limit: waking costs nothing, so pricing it would be an invented cost,
+    and whether the agent learns to space them is a result worth having.
+11. **The rules** (below), then the JSON shape to answer in.
+
+### Telling the agent when a note was answered
+
+A `note` order (see the rules) reaches the people who maintain this app, and
+"nothing acts on it automatically" — that was only ever true in one direction.
+If a maintainer builds what a note asked for, the agent had no way to learn its
+note had been read, and would keep asking or keep working around a restriction
+that no longer exists.
+
+`backend/agent_changes.json` is a git-tracked list of `{"date", "message"}`
+entries, edited by hand and committed in the same change that needs one —
+`agent.describe_recent_changes` shows entries from the last three days in the
+prompt. Edit it at the same time as the JOURNEY.md entry the change also
+needs — JOURNEY.md is prose for a person and mixes in changes that have
+nothing to do with the agent's own tools; this is the one-line version aimed
+at the agent, for the ones that do. Not every JOURNEY.md entry needs one: a
+docs reshuffle or a GPU benchmark has nothing for the agent to act on.
+
+A git-tracked file rather than a database row on purpose: this project has
+reset its own database more than once (see "Since 2026-09-01..." above), and
+an announcement should survive that the same way JOURNEY.md does.
+
+Shown for a fixed three-day window rather than until acknowledged — the same
+choice already made for recent wakeups and recent failures. There is no clean
+way to tell "the agent read this" from "the agent ignored this" short of
+asking it to say so, which is one more thing to get wrong, and a standing
+reminder would eventually crowd out the pass's own decision.
+
+**A new entry also wakes the agent, on the restart that ships it**, rather
+than waiting for whatever time the agent last chose for itself — which can be
+up to four days out. `backend/tasks/scheduler.py`'s
+`wake_agent_for_new_changes()` runs once at startup, after the agent's normal
+wakeup alarm has been restored, and pulls that alarm forward the same way an
+intraday trigger or the agent's own "research now" already does. It compares
+how many entries are in the file against how many this container has already
+announced (a count, stored in `BotSetting`, not a date — two entries can
+share a date across two same-day deploys, and a date comparison alone would
+call the second one "nothing new"). Scheduled through quiv and never
+awaited, so a slow decision pass can never hold up the app coming up.
 
 ### The rules, verbatim
 
@@ -633,9 +692,12 @@ The rules block:
   say.
 - You can also move the stop and take-profit on something you already hold,
   without buying or selling any of it. Use side `adjust` [...]
-- You may track at most `N` tickers, and every one of them is analysed and
-  charged every morning whether you act on it or not. To stop watching one, use
-  side `untrack` [...]
+- Nothing is analysed automatically, holdings included. Use side `research`
+  [...] to have something looked at, new or already tracked — it runs right
+  after this pass, and there is no daily count on how many you may commission,
+  only cash.
+- You may track at most `N` tickers. To stop watching one, use side `untrack`
+  [...]
 - Untracking frees a slot the same way a sell frees cash, and in the same
   order: to research something when the list is full, list the untrack first
   and the research after it.
@@ -674,12 +736,25 @@ record would be of a strategy nobody chose.
   rather than inherited from the account type.
 - **Exit levels that would execute on placement are refused**: a stop at or
   above the price, a target at or below it.
-- **A held ticker cannot be untracked.** A position nobody analyses is a
-  position with nothing looking for its exit, and the daily analysis of a
-  holding is what the research charge already pays for. Sell it first.
+- **A held ticker cannot be untracked.** Since 2026-09-08 nothing is analysed
+  automatically at all, holdings included — untracking a position would take
+  away the only way left to ever research it again. Sell it first.
 - **The watchlist is screened against a running copy too**, for the same reason
   as cash: an untrack listed before a research frees a slot for it, and two
-  researches cannot share one freed slot.
+  researches cannot share one freed slot. This only matters for a genuinely new
+  ticker — re-researching one already tracked does not touch the count.
+- **A ticker already tracked may be re-researched as often as the agent will
+  pay for it, same day included.** Before 2026-09-08 this was refused
+  outright, on the assumption that a daily sweep covered every tracked ticker
+  for free. There is no such sweep now, so refusing a fresh look at something
+  already tracked would mean it could never be re-analysed at all. A once-a-day
+  guard (`has_signal_today`) briefly stood in its place and was removed the
+  same day: an analysis finishes in about twenty minutes, and a price nearing
+  its stop or target is exactly the case where a second look the same day is
+  the right call. Cash is what bounds it now. `has_signal_today` still gates
+  the watchdog's own automatic move-triggered re-analysis — a different
+  question, the system deciding whether to auto-trigger rather than the agent
+  deciding whether to ask. See the 2026-09-08 entries in JOURNEY.md.
 - **A refused order is fed back once** and the model asked again, which is how
   it learns it may sell to fund a buy, and untrack to fund a research. The
   advice in that retry is matched to the refusal — cash advice does not help a
@@ -887,11 +962,22 @@ contradict a verdict already given.
 
 `backend/services/bars.py` is a read-through cache over the `dailybar` table
 (`(ticker, date)`). **Route any new daily-history read through `bars.get_bars()`,
-not `yf.Ticker(...).history()`** — the whole point is that a completed session
-never changes, so refetching one is waste and rate-limit risk.
+not `yf.Ticker(...).history()` or a direct Webull call** — the whole point is
+that a completed session never changes, so refetching one is waste and
+rate-limit risk.
+
+**Webull first, yfinance as fallback (2026-09-08).** `bars._fetch_history` tries
+`_fetch_from_webull` (the same history-bar endpoint `backend/services/intraday.py`
+uses for 1-minute bars, called here with `Timespan.D`) and falls through to
+`_fetch_from_yfinance` only when that returns `None` — Webull not configured,
+the call failing, or coming back empty. Confirmed live: the endpoint pages back
+daily bars with no real depth ceiling, over 2,000 bars deep in testing. yfinance
+is not removed — it is what already produces this app's "possibly delisted"
+false positives and 429s, and a Webull outage must not take the whole daily
+cache down with it.
 
 Two legitimate direct yfinance uses remain, neither of them history:
-`positions.get_current_price` (a quote, Webull's fallback) and
+`positions.get_current_price` (a live quote, Webull's fallback) and
 `watchdog.get_next_earnings_date` (the calendar).
 
 Non-obvious rules the cache depends on:

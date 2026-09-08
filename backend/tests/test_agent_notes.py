@@ -150,6 +150,19 @@ def test_only_the_last_few_are_shown():
     assert "T0:" not in text
 
 
+def test_a_failure_is_not_told_it_will_fail_again():
+    """AVGO, 2026-09-08: a sound decision (take profit, cut concentration) hit
+    a timing bug, and the agent held for two more passes without ever
+    revisiting the reason it gave for wanting to sell. The old closing line —
+    "will usually fail the same way" — cannot tell a bug from a standing
+    restriction, so it must not presume either."""
+    text = "\n".join(agent.describe_recent_failures(
+        [{"side": "sell", "ticker": "AVGO", "quantity": 29, "why": "x"}]
+    ))
+    assert "will usually fail the same way" not in text
+    assert "do not let the failure alone talk you out of it" in text
+
+
 def test_failures_are_stored_so_they_survive_the_process():
     """It has to cross days, and the process that saw the failure has exited."""
     import json

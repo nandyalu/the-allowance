@@ -1,10 +1,14 @@
-"""The agent chooses when it sees research, and is told why each analysis ran.
+"""The agent commissions research and is told why each analysis ran.
 
-Both exist for the same reason, recorded in CLAUDE.md under "What the
-experiment is for": give the agent proper tools inside reasonable
-restrictions. A stock can move enough in a day to be worth taking the profit
-or cutting the loss, and an agent that cannot ask to look until tomorrow
-cannot act on that.
+Recorded in CLAUDE.md under "What the experiment is for": give the agent
+proper tools inside reasonable restrictions. A stock can move enough in a day
+to be worth taking the profit or cutting the loss, and an agent that cannot
+ask to look until tomorrow cannot act on that.
+
+Until 2026-09-08 a research order also chose *when* the answer arrived —
+"now" ran it straight away, anything else waited for the next morning's
+sweep. The sweep is gone: every commission runs right after the pass that
+asked for it, so that choice no longer exists. See JOURNEY.md.
 """
 import pytest
 
@@ -26,43 +30,19 @@ def researchable(monkeypatch):
 # --- when the answer arrives ---------------------------------------------------
 
 
-@pytest.mark.parametrize("asked", ["now", "NOW", "immediately", "today", "asap"])
-def test_asking_for_it_now_is_accepted(researchable, asked):
-    """Several spellings, because the model writes prose and one exact token
-    would silently downgrade a real request to the overnight default."""
-    accepted, rejected = agent.screen(
-        [{"ticker": "NEW", "side": "research", "when": asked}],
-        _book(), {}, None, {"NEW"},
-    )
-
-    assert rejected == []
-    assert accepted[0]["when"] == "now"
-
-
-@pytest.mark.parametrize("asked", [None, "", "tomorrow", "next week", "whenever"])
-def test_anything_else_waits_for_the_sweep(researchable, asked):
-    """Overnight is the default, so an unreadable answer is the cheap one and
-    never an unrequested burst of GPU work."""
+@pytest.mark.parametrize("asked", [None, "now", "tomorrow", "whenever", ""])
+def test_every_commission_runs_regardless_of_when(researchable, asked):
+    """The field still parses harmlessly if an old habit or a stray prompt
+    sends it, but it decides nothing any more — there is no "later" path
+    left to route it to."""
     order = {"ticker": "NEW", "side": "research"}
     if asked is not None:
         order["when"] = asked
 
-    accepted, _ = agent.screen([order], _book(), {}, None, {"NEW"})
+    accepted, rejected = agent.screen([order], _book(), {}, None, {"NEW"})
 
-    assert accepted[0]["when"] == "tomorrow"
-
-
-def test_the_timing_does_not_change_the_price(researchable):
-    """Both cost $0.05. The work is identical, so a price difference would be
-    an invented cost dressed up as a rule."""
-    now, _ = agent.screen(
-        [{"ticker": "AAA", "side": "research", "when": "now"}], _book(cash=1.0), {}, None, {"AAA"},
-    )
-    later, _ = agent.screen(
-        [{"ticker": "BBB", "side": "research"}], _book(cash=1.0), {}, None, {"BBB"},
-    )
-
-    assert now and later  # both affordable at the same cash
+    assert rejected == []
+    assert accepted[0]["ticker"] == "NEW"
 
 
 class _Candidate:
@@ -77,15 +57,15 @@ class _Candidate:
         return self.volume / 1_000_000
 
 
-def test_the_prompt_offers_the_choice(researchable):
+def test_the_prompt_no_longer_offers_a_choice_of_when(researchable):
     prompt = agent.build_prompt(
-        _book(), [], {}, menu=[_Candidate("INTC")], price=0.05, max_research=15,
+        _book(), [], {}, menu=[_Candidate("INTC")], price=0.05,
     )
 
-    assert '"when": "now"' in prompt
-    assert "runs straight after this pass" in prompt
-    # The shape is what the model copies, so the field has to appear there too.
-    assert '"side": "research", "when": "now"' in prompt
+    assert '"when"' not in prompt
+    assert "runs right after this pass" in prompt
+    # The shape is what the model copies, so a dropped field must not linger there.
+    assert '{"ticker": "INTC", "side": "research", "reason": "why"}' in prompt
 
 
 # --- why an analysis ran -------------------------------------------------------

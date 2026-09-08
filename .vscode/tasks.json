@@ -19,6 +19,63 @@
                 "clear": true
             },
             "problemMatcher": []
+        },
+        {
+            "label": "Stop trading-experiment container",
+            "type": "shell",
+            "command": "docker stop trading-experiment",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Start trading-experiment container",
+            "type": "shell",
+            // Resumes the existing container on its current image. It does NOT
+            // pick up a freshly built trading-experiment:local — the container
+            // was created from a specific image digest (see
+            // com.docker.compose.image in `docker inspect`), and `docker start`
+            // does not re-resolve that tag. After "Build trading-bot Docker
+            // image", use "Recreate trading-experiment container" below
+            // instead, which does re-resolve it.
+            "command": "docker start trading-experiment",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Recreate trading-experiment container (deploys a rebuilt image)",
+            "type": "shell",
+            // What "Start" cannot do: recreates the container from whatever
+            // trading-experiment:local currently resolves to, so a rebuilt
+            // image actually takes effect. cwd is the stack's own directory —
+            // not ${workspaceFolder} — because compose resolves the sibling
+            // .env file, and any relative paths in compose.yaml, against the
+            // directory it is run from. Reads /opt/stacks/trading-experiment/
+            // compose.yaml and .env, both root-owned but world-readable
+            // (644); no sudo needed, and this never writes to either file.
+            "command": "docker compose up -d",
+            "options": {
+                "cwd": "/opt/stacks/trading-experiment"
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            },
+            "problemMatcher": []
         }
     ]
 }

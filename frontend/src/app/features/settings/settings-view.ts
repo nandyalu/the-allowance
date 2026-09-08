@@ -2,7 +2,6 @@ import { Component, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 
 import { SettingsService } from '../../core/services/settings.service';
-import { marketTime } from '../../shared/market-time';
 
 @Component({
   selector: 'app-settings-view',
@@ -10,9 +9,6 @@ import { marketTime } from '../../shared/market-time';
   templateUrl: './settings-view.html',
 })
 export class SettingsView {
-  /** When the daily grading run happens, on the reader's clock. */
-  readonly dailySignalsTime = marketTime(21, 30);
-
   private readonly settingsService = inject(SettingsService);
   protected readonly settings = this.settingsService.settings;
 
@@ -23,7 +19,6 @@ export class SettingsView {
   protected readonly alertStopPct = signal(10);
   protected readonly alertVolumeMult = signal(2);
   protected readonly alertsEnabled = signal(true);
-  protected readonly dailySweepEnabled = signal(true);
   protected readonly agentEnabled = signal(false);
   protected readonly agentBudget = signal(1000);
   // Zero means no floor, which is the default — see the template's hint.
@@ -44,7 +39,6 @@ export class SettingsView {
       this.alertStopPct.set(s.alert_stop_pct);
       this.alertVolumeMult.set(s.alert_volume_mult);
       this.alertsEnabled.set(s.alerts_enabled);
-      this.dailySweepEnabled.set(s.daily_sweep_enabled);
       this.agentEnabled.set(s.agent_enabled);
       this.agentBudget.set(s.agent_budget);
       this.agentMinWinProbability.set(s.agent_min_win_probability);
@@ -77,10 +71,6 @@ export class SettingsView {
     this.alertsEnabled.set((e.target as HTMLInputElement).checked);
   }
 
-  protected onDailySweepChange(e: Event): void {
-    this.dailySweepEnabled.set((e.target as HTMLInputElement).checked);
-  }
-
   protected onAgentEnabledChange(e: Event): void {
     this.agentEnabled.set((e.target as HTMLInputElement).checked);
   }
@@ -110,7 +100,6 @@ export class SettingsView {
         alert_stop_pct: this.alertStopPct(),
         alert_volume_mult: this.alertVolumeMult(),
         alerts_enabled: this.alertsEnabled(),
-        daily_sweep_enabled: this.dailySweepEnabled(),
         agent_enabled: this.agentEnabled(),
         agent_budget: this.agentBudget(),
         agent_min_win_probability: this.agentMinWinProbability(),

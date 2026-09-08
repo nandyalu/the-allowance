@@ -64,9 +64,16 @@ def client(monkeypatch):
     The digest prices what the agent holds, and the conftest guard rightly
     refuses to let a test reach the live broker. Stubbing the lookup keeps this
     a test of response shape, which is what it is for.
+
+    Daily bars now try Webull first (backend/services/bars.py, 2026-09-08),
+    so the ticker-events route reaches ``quotes.get_api_client`` too. Telling
+    it "not configured" sends the fetch straight to its yfinance fallback,
+    same as before that change — this stays a test of response shape, not of
+    either price vendor.
     """
     monkeypatch.setattr("backend.services.digest.get_current_price", lambda t: 100.0)
     monkeypatch.setattr("backend.services.positions.get_current_price", lambda t: 100.0)
+    monkeypatch.setattr("backend.services.quotes.get_api_client", lambda: None)
     return TestClient(app)
 
 

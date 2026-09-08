@@ -13,7 +13,6 @@ const SERVER_SETTINGS: Settings = {
   alert_stop_pct: 10,
   alert_volume_mult: 2,
   alerts_enabled: true,
-  daily_sweep_enabled: true,
   agent_enabled: false,
   agent_budget: 1000,
   agent_min_win_probability: 0,

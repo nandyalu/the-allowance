@@ -9,10 +9,13 @@ the same bars independently.
 The cases that matter are the ones where a naive cache silently degrades back
 into "fetch every time": a ticker with less history than requested, a market
 holiday, and a range the caller widens.
+
+``_fetch_history`` is the seam these tests mock — it already normalizes
+whichever source answered (Webull, then yfinance; see the module docstring)
+into plain dicts, so the cache logic here is tested independently of either.
 """
 import datetime
 
-import pandas as pd
 import pytest
 
 from backend.services import bars
@@ -21,28 +24,22 @@ TODAY = datetime.date(2026, 8, 6)  # a Thursday
 YESTERDAY = datetime.date(2026, 8, 5)
 
 
-def _frame(dates: list[datetime.date]) -> pd.DataFrame:
-    return pd.DataFrame(
-        {
-            "Open": [10.0] * len(dates),
-            "High": [12.0] * len(dates),
-            "Low": [9.0] * len(dates),
-            "Close": [11.0] * len(dates),
-            "Volume": [1000.0] * len(dates),
-        },
-        index=pd.to_datetime([d.isoformat() for d in dates]),
-    )
+def _bars(dates: list[datetime.date]) -> list[dict]:
+    return [
+        {"date": d, "open": 10.0, "high": 12.0, "low": 9.0, "close": 11.0, "volume": 1000.0}
+        for d in dates
+    ]
 
 
 @pytest.fixture
 def counting_fetch(monkeypatch):
-    """Records every fetch and returns a fixed two-session frame."""
+    """Records every fetch and returns a fixed two-session history."""
     calls: list[datetime.date] = []
-    frame = _frame([datetime.date(2026, 8, 4), YESTERDAY])
+    history = _bars([datetime.date(2026, 8, 4), YESTERDAY])
 
-    def fetch(ticker, start):
+    def fetch(ticker, start, today=None):
         calls.append(start)
-        return frame
+        return history
 
     monkeypatch.setattr(bars, "_fetch_history", fetch)
     monkeypatch.setattr(bars, "_todays_bar", lambda ticker, today: None)
@@ -106,9 +103,9 @@ def test_a_holiday_does_not_refetch_on_every_call(fake_bar_cache, counting_fetch
 def test_an_unknown_ticker_is_not_re_asked_on_every_call(fake_bar_cache, monkeypatch):
     calls = []
 
-    def empty_fetch(ticker, start):
+    def empty_fetch(ticker, start, today=None):
         calls.append(start)
-        return pd.DataFrame()
+        return []
 
     monkeypatch.setattr(bars, "_fetch_history", empty_fetch)
     monkeypatch.setattr(bars, "_todays_bar", lambda ticker, today: None)
@@ -121,7 +118,8 @@ def test_a_new_session_is_picked_up(fake_bar_cache, monkeypatch):
     """The throttle must not mask a genuinely new close."""
     monkeypatch.setattr(bars, "_todays_bar", lambda ticker, today: None)
     monkeypatch.setattr(
-        bars, "_fetch_history", lambda ticker, start: _frame([datetime.date(2026, 8, 4), YESTERDAY])
+        bars, "_fetch_history",
+        lambda ticker, start, today=None: _bars([datetime.date(2026, 8, 4), YESTERDAY]),
     )
     bars.get_bars("NVDA", datetime.date(2026, 8, 1), today=TODAY)
 
@@ -130,7 +128,7 @@ def test_a_new_session_is_picked_up(fake_bar_cache, monkeypatch):
     monkeypatch.setattr(
         bars,
         "_fetch_history",
-        lambda ticker, start: _frame([datetime.date(2026, 8, 4), YESTERDAY, TODAY]),
+        lambda ticker, start, today=None: _bars([datetime.date(2026, 8, 4), YESTERDAY, TODAY]),
     )
     result = bars.get_bars("NVDA", datetime.date(2026, 8, 1), today=datetime.date(2026, 8, 7))
     assert [bar.date for bar in result][-1] == TODAY.isoformat()
@@ -143,7 +141,7 @@ def test_today_is_never_stored(fake_bar_cache, monkeypatch):
     monkeypatch.setattr(
         bars,
         "_fetch_history",
-        lambda ticker, start: _frame([datetime.date(2026, 8, 4), YESTERDAY, TODAY]),
+        lambda ticker, start, today=None: _bars([datetime.date(2026, 8, 4), YESTERDAY, TODAY]),
     )
     bars.refresh("NVDA", datetime.date(2026, 8, 1), today=TODAY)
     assert TODAY not in {date for _, date in fake_bar_cache}
@@ -153,7 +151,8 @@ def test_todays_bar_is_appended_live_when_asked(fake_bar_cache, monkeypatch):
     from backend.services.positions import OhlcBar
 
     monkeypatch.setattr(
-        bars, "_fetch_history", lambda ticker, start: _frame([datetime.date(2026, 8, 4), YESTERDAY])
+        bars, "_fetch_history",
+        lambda ticker, start, today=None: _bars([datetime.date(2026, 8, 4), YESTERDAY]),
     )
     live = OhlcBar(date=TODAY.isoformat(), open=1, high=2, low=0.5, close=1.5, volume=10)
     monkeypatch.setattr(bars, "_todays_bar", lambda ticker, today: live)
@@ -167,12 +166,12 @@ def test_todays_bar_is_appended_live_when_asked(fake_bar_cache, monkeypatch):
 def test_a_revised_bar_replaces_the_stored_one(fake_bar_cache, monkeypatch):
     """A bar fetched moments after the close can be revised by the exchange;
     the later fetch is the better one."""
-    monkeypatch.setattr(bars, "_fetch_history", lambda ticker, start: _frame([YESTERDAY]))
+    monkeypatch.setattr(bars, "_fetch_history", lambda ticker, start, today=None: _bars([YESTERDAY]))
     bars.refresh("NVDA", datetime.date(2026, 8, 1), today=TODAY)
     assert fake_bar_cache[("NVDA", YESTERDAY)]["close"] == 11.0
 
-    revised = _frame([YESTERDAY])
-    revised.loc[revised.index[0], "Close"] = 99.0
-    monkeypatch.setattr(bars, "_fetch_history", lambda ticker, start: revised)
+    revised = _bars([YESTERDAY])
+    revised[0]["close"] = 99.0
+    monkeypatch.setattr(bars, "_fetch_history", lambda ticker, start, today=None: revised)
     bars.refresh("NVDA", datetime.date(2026, 8, 1), today=TODAY)
     assert fake_bar_cache[("NVDA", YESTERDAY)]["close"] == 99.0
