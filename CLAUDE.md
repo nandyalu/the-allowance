@@ -1099,14 +1099,14 @@ came through an order.
 
 `backend/services/listings.py` marks a ticker inactive once no fresh bar has
 appeared for `STALE_AFTER_TRADING_DAYS` (7). Every fetch path checks it: the bar
-cache, `get_current_price`, the watchdog's tracked list, and the daily sweep.
+cache, `get_current_price`, and the watchdog's tracked list.
 
 **Why it needs detecting at all:** a delisted symbol does not fail cleanly.
 AILEQ returned five bars across two months, every one priced at $0.000001.
 Nothing in that looks like an error — to the bar cache it was a ticker merely
-behind, so it refetched every 30 minutes forever, and the daily sweep spent
-minutes of GPU analyzing a company with no market, then could not record the
-signal because there was no price to record it against.
+behind, so it refetched every 30 minutes forever, and the (now-retired) daily
+sweep spent minutes of GPU analyzing a company with no market, then could not
+record the signal because there was no price to record it against.
 
 **The rule is freshness, not price.** A real penny stock at $0.0001 is still
 real and must keep working; a price threshold would wrongly exclude it.

@@ -1957,7 +1957,6 @@ table {
   overscroll-behavior: contain;
 }
 
-
 .timeline-title {
   margin: 0 0 var(--sp-4);
   font-size: var(--t-md);

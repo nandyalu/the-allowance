@@ -15,7 +15,7 @@
 **The hardest requirement is the model**, and the honest options are:
 
 - **A local GPU pool.** What this runs on. Seven 8 GiB cards, and one analysis takes about 19 minutes. Free to run beyond electricity, and slow.
-- **A hosted API.** Gemini Flash-Lite does the same analysis in 1.2 to 1.6 minutes. At the measured token counts that is about **$0.056 an analysis** — roughly **$10 a month** for a 9-ticker daily sweep. Fast, and it costs real money.
+- **A hosted API.** Gemini Flash-Lite does the same analysis in 1.2 to 1.6 minutes. At the measured token counts that is about **$0.056 an analysis** — roughly **$10 a month** for a nine-ticker watchlist analysed about once a day, which is a rough sizing figure now that nothing forces a fixed daily count. Fast, and it costs real money.
 
 Nothing else in the design cares which you pick.
 
@@ -119,7 +119,7 @@ The site is meant to be read by anyone. The small write surface is not.
 `PUBLIC_MODE` does two things, and the second matters more:
 
 1. **Every write is refused.** Middleware, not a per-route check, so it also covers whatever route gets added later.
-2. **No scheduler, no Discord, no trade stream.** Without this, two containers over one database would each sweep — paying twice for the same research — and each decide at 13:35, putting two sets of orders at the broker against one ledger. **None of that arrives as an HTTP request**, so refusing writes alone would not have stopped any of it.
+2. **No scheduler, no Discord, no trade stream.** Without this, two containers over one database would each run its own agent on the same book — duplicate research commissions paying twice for the same look, duplicate decision passes, two sets of orders at the broker against one ledger. **None of that arrives as an HTTP request**, so refusing writes alone would not have stopped any of it.
 
 Mount the volume read-write for the public copy. SQLite writes its `-wal` and `-shm` sidecars even to read, and `:ro` fails to open the database at all. The guarantee is `PUBLIC_MODE`, not the mount flag.
 

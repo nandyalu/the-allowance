@@ -4,7 +4,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { AgentEvent, AgentEventOrder, AgentOrder } from '../../core/models/api.models';
 import { AgentService } from '../../core/services/agent.service';
 import { Term } from '../../shared/glossary/term';
-import { marketTime, readerDateTime, readerTime } from '../../shared/market-time';
+import { readerDateTime, readerTime } from '../../shared/market-time';
 
 /**
  * Every decision pass, with the prompt and the answer verbatim.
@@ -25,9 +25,6 @@ import { marketTime, readerDateTime, readerTime } from '../../shared/market-time
   templateUrl: './decisions-view.html',
 })
 export class DecisionsView {
-  /** When the pass runs, on the reader's clock. */
-  readonly decisionTime = marketTime(13, 35);
-
   /** A pass's timestamp on the reader's clock, with the zone named. */
   when(instant: string): string {
     return readerDateTime(instant);

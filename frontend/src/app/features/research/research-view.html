@@ -4,9 +4,8 @@
       <h1>Research</h1>
       <p class="subtitle">
         <strong>What it pays to study, and what that money bought.</strong> The agent chose every
-        name here, and it is charged for all of them every morning — about
-        <strong>${{ dailyCost().toFixed(2) }} a day</strong> at {{ tickers().length }}
-        {{ tickers().length === 1 ? 'ticker' : 'tickers' }}.
+        name here, and it decides on its own when one is worth a fresh <strong>$0.05</strong> look —
+        nothing on this list is analysed on a schedule.
       </p>
     </div>
   </header>
@@ -115,7 +114,8 @@
         <span class="empty-icon" aria-hidden="true">🧠</span>
         <strong>No analyses yet</strong>
         <span>
-          The sweep runs each weekday at {{ sweepTime.time }} {{ sweepTime.zone }} over everything on the watchlist above.
+          Nothing runs on a schedule — the agent orders a look on a name above when it decides one
+          is worth $0.05.
         </span>
       </div>
     } @else {

@@ -100,7 +100,7 @@ TRADINGAGENTS_DEEP_THINK_LLM=gemini-3.5-flash-lite
 TRADINGAGENTS_QUICK_THINK_LLM=gemini-3.5-flash-lite
 ```
 
-About 1.2 to 1.6 minutes an analysis, and roughly **$0.056 each** — near $10 a month for a nine-ticker daily sweep.
+About 1.2 to 1.6 minutes an analysis, and roughly **$0.056 each** — near $10 a month for a nine-ticker watchlist analysed about once a day, a rough sizing figure since nothing forces a fixed daily count any more.
 
 Both stages take the same value. The model is also a database setting, so the settings page changes it without a redeploy; these variables only supply the starting value.
 

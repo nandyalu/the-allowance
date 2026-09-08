@@ -26,7 +26,10 @@
   } @else if (!events().length) {
     <div class="empty">
       <p>No decision passes recorded yet.</p>
-      <p class="hint">The agent runs at {{ decisionTime.time }} {{ decisionTime.zone }} on a weekday, and each pass appears here.</p>
+      <p class="hint">
+        The agent decides when it is asked, on its own schedule — each pass appears here as soon as
+        it runs.
+      </p>
     </div>
   } @else {
     @for (event of events(); track event.id) {

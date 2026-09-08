@@ -1,15 +1,3 @@
-import { marketTime } from '../market-time';
-
-/** A scheduled time written for the reader — "9:35 AM EDT".
- *
- * The jobs are configured in UTC and UTC is not what anyone should read here.
- * Resolved once at load, like the timeline, so a definition and the schedule
- * beside it never disagree. */
-function at(hour: number, minute: number): string {
-  const t = marketTime(hour, minute);
-  return `${t.time} ${t.zone}`;
-}
-
 /**
  * Every term the site uses that a reader would not already know.
  *
@@ -79,15 +67,14 @@ export const TERMS: Term[] = [
     id: 'research-charge',
     label: 'research charge',
     short:
-      'What the agent pays to have one ticker analysed, every morning it keeps that ticker. It comes out of the same money it trades with.',
-    long: 'The charge is the point of letting the agent choose what to study. Free research is just a longer watchlist, and an agent that pays nothing for being wrong about what was worth studying learns nothing from being wrong.',
+      'What the agent pays to have one ticker analysed — $0.05, whenever it decides a fresh look is worth ordering. It comes out of the same money it trades with.',
+    long: 'The charge is the point of letting the agent choose what to study. Free research is just a longer watchlist, and an agent that pays nothing for being wrong about what was worth studying learns nothing from being wrong. Nothing on the watchlist is analysed on a schedule; the agent orders a look, holdings included, whenever it judges one worth the $0.05.',
   },
   {
     id: 'untrack',
     label: 'untrack',
-    short:
-      'The agent dropping a name it no longer wants to pay for. It frees a watchlist slot and stops the daily charge.',
-    long: 'It cannot untrack something it holds. A position nobody analyses is a position with nothing looking for its exit, so it has to sell first.',
+    short: 'The agent dropping a name it no longer wants to track. It frees a watchlist slot.',
+    long: 'It cannot untrack something it holds. Nothing is analysed automatically, so untracking a position would take away the only way left to ever research it again — it has to sell first.',
   },
   {
     id: 'unguarded',
@@ -134,15 +121,11 @@ export const TERMS: Term[] = [
       'A one-line reading of the market: VIX, the S&P against its 200-day average, and the yield curve. The agent sees this same sentence first in every prompt.',
   },
   {
-    id: 'sweep',
-    label: 'sweep',
-    short: `The morning run that analyses every ticker on the watchlist, at ${at(11, 0)}, and charges the agent for each one.`,
-  },
-  {
     id: 'decision-pass',
     label: 'decision pass',
-    short: `The one moment each weekday when the agent reads its book and answers with orders — ${at(13, 35)}, five minutes after the US market opens.`,
-    long: 'Deliberately not chained to the sweep that produces the signals. The sweep runs the night before, and Webull rejects a market order in the evening outright, so an agent wired to trade straight after it would look healthy and never fill an order.',
+    short:
+      'The moment the agent reads its book and answers with orders. Not a fixed time — the agent names its own next one, so this happens whenever it asked to be woken.',
+    long: 'Naming no time falls back to the following open, and a final pass always runs five minutes before the close whatever the agent asked for, so no position goes into the night unreviewed. Before 2026-09-05 this ran once a day at a fixed clock time; the agent now owns its own schedule entirely.',
   },
 ];
 

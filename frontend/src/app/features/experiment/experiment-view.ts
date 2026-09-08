@@ -123,6 +123,12 @@ export class ExperimentView {
    * **"It decides" used to sit here at 13:35 and no longer does.** That pass
    * was removed on 2026-09-05: the agent names every one of its own times now,
    * so its passes are read from the record below rather than predicted here.
+   *
+   * **The 11:00 "morning sweep" row is gone too, as of 2026-09-08.** It used
+   * to analyse the whole watchlist automatically, whether the agent wanted
+   * the answer or not; that forced pass is deleted, not just idle, so
+   * showing it here would promise something that no longer happens. The
+   * agent's own research passes are in the record below instead.
    */
   private fixedBeats(on: Date): Beat[] {
     // **Every one of these returns early at the weekend**, so listing them on a
@@ -130,7 +136,6 @@ export class ExperimentView {
     // fault as the 13:35 row this replaced, in a quieter form.
     if (!this.isTradingDay(on)) return [];
     const rows: [number, number, string][] = [
-      [11, 0, 'The morning sweep analyses the watchlist'],
       [12, 45, 'The market regime is read'],
       [13, 0, 'Anything reporting earnings gets a fresh look'],
       [21, 30, 'Signals are graded, then the journal is written'],
@@ -241,8 +246,8 @@ export class ExperimentView {
 
   /** What the second column is: the day in progress, or the one being waited
    * for. The heading has to say which, or a Monday's rows read as today's. */
-  protected readonly todayIsNow = computed(() =>
-    this.marketDay(this.focusDay()) === this.marketDay(this.now),
+  protected readonly todayIsNow = computed(
+    () => this.marketDay(this.focusDay()) === this.marketDay(this.now),
   );
 
   /** The previous weekday. Monday looks back to Friday: a timeline whose first

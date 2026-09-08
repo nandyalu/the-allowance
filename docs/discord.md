@@ -8,11 +8,12 @@ The channel carries what the agent did. It is short by design, so an alert in it
 
 ## The scheduled posts
 
+A handful of posts land on a clock. **The decision pass itself does not** — the agent names its own next wakeup, from five minutes to four days out, so what it bought, sold, adjusted, commissioned or untracked posts whenever that pass runs, not at a fixed time. Silent on a pass it did nothing.
+
 | When (UTC, weekdays) | Post |
 |---|---|
 | 12:45 | 🟢/🟡/🔴 the market regime line — VIX, SPY against its 200-day average, the yield curve |
 | 13:00 | 📅 "X reports earnings soon", for a tracked ticker reporting within two days |
-| 13:35 | **The decision pass.** What the agent bought, sold, adjusted, commissioned or untracked, and why. Silent on a day it did nothing |
 | 21:30 | Graded signals — "PASS/FAIL, vs SPY, target hit" |
 | Fri 23:00 | 🗞️ the weekly digest |
 

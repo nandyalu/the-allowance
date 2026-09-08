@@ -7,7 +7,6 @@ import { TickersService } from '../../core/services/tickers.service';
 import { WatchlistService } from '../../core/services/watchlist.service';
 import { DecisionBadge } from '../../shared/decision-badge';
 import { Term } from '../../shared/glossary/term';
-import { marketTime } from '../../shared/market-time';
 
 type StatusFilter = '' | 'pending' | 'resolved';
 
@@ -16,13 +15,16 @@ type StatusFilter = '' | 'pending' | 'resolved';
  *
  * This merges two pages that were always one subject. Tickers listed what was
  * being watched; Signals listed the analyses of them. Split, a reader had to
- * hold "the agent pays for each of these names every morning" on one page and
+ * hold "what a fresh look on one of these names costs" on one page and
  * "here is what that money bought" on another.
  *
  * Nothing here adds or removes a ticker. The agent commissions research to add
- * a name and untracks to drop one, and it pays for every name on the list every
- * morning. The candidate list at the bottom is the same menu it is shown in its
- * prompt — it is here to be looked at, not acted on.
+ * a name and untracks to drop one. Since 2026-09-08 nothing here runs on a
+ * schedule: the agent decides for itself when a name is worth a fresh $0.05
+ * look, holdings included, rather than every tracked name being charged and
+ * analysed automatically each morning. The candidate list at the bottom is
+ * the same menu it is shown in its prompt — it is here to be looked at, not
+ * acted on.
  */
 @Component({
   selector: 'app-research-view',
@@ -30,9 +32,6 @@ type StatusFilter = '' | 'pending' | 'resolved';
   templateUrl: './research-view.html',
 })
 export class ResearchView {
-  /** When the morning sweep runs, on the reader's clock. */
-  readonly sweepTime = marketTime(11, 0);
-
   private readonly tickersService = inject(TickersService);
   private readonly signalsService = inject(SignalsService);
   private readonly watchlistService = inject(WatchlistService);
@@ -48,10 +47,6 @@ export class ResearchView {
    * below is every analysis in date order — the same name appearing twice is
    * the interesting case, not a duplicate to collapse. */
   protected readonly feed = computed<Signal[]>(() => this.signals());
-
-  /** What the watchlist costs to keep, at $0.05 an analysis every weekday.
-   * The agent is shown this same figure; a reader should see what it sees. */
-  protected readonly dailyCost = computed(() => this.tickers().length * 0.05);
 
   /** True when the page's own data could not be fetched. Distinct from "there
    * is nothing yet", which is a real answer — a skeleton that never resolves

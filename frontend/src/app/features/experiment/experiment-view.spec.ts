@@ -82,18 +82,30 @@ describe('ExperimentView timeline', () => {
   });
 
   it('still lists the jobs that do run on a clock', () => {
-    const texts = view().today().map((r: any) => r.text);
+    const texts = view()
+      .today()
+      .map((r: any) => r.text);
 
-    expect(texts).toContain('The morning sweep analyses the watchlist');
+    expect(texts).toContain('The market regime is read');
     expect(texts).toContain('Signals are graded, then the journal is written');
   });
 
-  it('marks a clock-driven job as not the agent’s own choice', () => {
-    const sweep = view()
+  it('no longer advertises the removed morning sweep', () => {
+    // Deleted on 2026-09-08, not merely idle — the agent commissions its own
+    // research now, so this row would promise a pass that never happens.
+    const texts = view()
       .today()
-      .find((r: any) => r.text.startsWith('The morning sweep'));
+      .map((r: any) => r.text);
 
-    expect(sweep.agent).toBe(false);
+    expect(texts).not.toContain('The morning sweep analyses the watchlist');
+  });
+
+  it('marks a clock-driven job as not the agent’s own choice', () => {
+    const regime = view()
+      .today()
+      .find((r: any) => r.text.startsWith('The market regime'));
+
+    expect(regime.agent).toBe(false);
   });
 
   it('gives every row a key that survives a repeated summary', () => {
@@ -169,9 +181,9 @@ describe('ExperimentView timeline at the weekend', () => {
   afterEach(() => vi.useRealTimers());
 
   it('promises no clock-driven job on a day none of them run', () => {
-    // The sweep, the regime read, the earnings check and grading all return
-    // early at the weekend. Listing them promises four things that will not
-    // happen — the same fault as the removed 13:35 row, more quietly.
+    // The regime read, the earnings check and grading all return early at
+    // the weekend. Listing them promises three things that will not happen
+    // — the same fault as the removed 13:35 row, more quietly.
     const saturday = onSaturday();
 
     expect(saturday.fixedBeats(new Date('2026-09-05T14:00:00Z'))).toEqual([]);
@@ -201,8 +213,12 @@ describe('ExperimentView timeline at the weekend', () => {
       .today()
       .map((r: any) => r.text);
 
-    expect(texts).toContain('The morning sweep analyses the watchlist');
-    expect(onSaturday().today().every((r: any) => !r.done)).toBe(true);
+    expect(texts).toContain('The market regime is read');
+    expect(
+      onSaturday()
+        .today()
+        .every((r: any) => !r.done),
+    ).toBe(true);
   });
 
   it('stays on today when the agent ran at the weekend', () => {

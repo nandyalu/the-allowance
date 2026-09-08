@@ -10,13 +10,13 @@ A web dashboard and a Discord channel report what it did.
 
 **No real money is involved and no order can reach a real account.** Webull access is the sandbox only.
 
-## What runs each weekday
+## What runs on the agent's own schedule
 
-The morning sweep analyses every ticker on the watchlist and charges the agent for each one. Four analysts — market, news, sentiment, and fundamentals — feed a bull-versus-bear debate. A trader drafts a plan, and a risk team picks one decision: **Buy, Overweight, Hold, Underweight, or Sell**.
+Nothing is analysed automatically, holdings included. A **research** order commissions a fresh look at a name — new or already tracked — and costs $0.05 out of the same money the agent trades with. Four analysts — market, news, sentiment, and fundamentals — feed a bull-versus-bear debate. A trader drafts a plan, and a risk team picks one decision: **Buy, Overweight, Hold, Underweight, or Sell**.
 
-Five minutes after the US open the agent reads its book, its signals, its own track record and the bill it is running up, and answers with orders.
+At every pass the agent reads its book, its signals, its own track record, and the bill it is running up, and answers with orders.
 
-**It also says when to wake it next.** From there it sets its own cadence through the session, so it can take a profit, cut a loss, or commission research while the move it is reading is still happening. A final pass runs five minutes before the close whatever it asked for.
+**It also says when to wake it next.** It sets its own cadence through the session, so it can take a profit, cut a loss, or commission research while the move it is reading is still happening. Naming no time means it is asked again at the following open — a fallback, not a plan — and a final pass always runs five minutes before the close, whatever it asked for, so no position goes into the night unreviewed.
 
 The app records each decision with its price and time horizon, then grades it automatically once that horizon arrives — against reality, against SPY, and against the analysis's own price target.
 

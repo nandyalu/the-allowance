@@ -207,5 +207,4 @@ describe('DecisionsView', () => {
     expect(head).toContain(time);
     expect(head).toContain(label);
   });
-
 });

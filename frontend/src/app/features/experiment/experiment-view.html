@@ -43,7 +43,7 @@
         <div>
           <p class="guardrails-head">It chooses</p>
           <ul>
-            <li>Which tickers to study, and pays for each one every morning</li>
+            <li>Which tickers to study, and when a fresh look is worth $0.05</li>
             <li>What to buy and sell, and how much</li>
             <li>Where to rest its stop and its target</li>
             <li>Which names to stop watching</li>
@@ -262,8 +262,8 @@
                   <strong>{{ g.vsBenchmark }}/{{ g.vsBenchmarkTotal }}</strong> beat SPY.
                 </p>
                 <p class="hint">
-                  The second number is the one that matters. A 70% win rate in a rising market can be
-                  worse than useless — holding SPY and doing nothing would have beaten it.
+                  The second number is the one that matters. A 70% win rate in a rising market can
+                  be worse than useless — holding SPY and doing nothing would have beaten it.
                 </p>
               } @else {
                 <p class="big-fact">
@@ -312,7 +312,9 @@
                   </div>
                 }
               </dl>
-              <p class="hint">This same sentence is the first line of every prompt the agent sees.</p>
+              <p class="hint">
+                This same sentence is the first line of every prompt the agent sees.
+              </p>
             </div>
           </section>
         }
@@ -325,19 +327,29 @@
         <p class="timeline-day">{{ previousLabel() }} · last trading day</p>
         <ol class="timeline-list">
           @for (e of previous(); track e.key) {
-            <li class="tl" [class.tl--done]="e.done" [class.tl--act]="e.act"
-                [class.tl--agent]="e.agent">
+            <li
+              class="tl"
+              [class.tl--done]="e.done"
+              [class.tl--act]="e.act"
+              [class.tl--agent]="e.agent"
+            >
               <span class="tl-time">{{ clock(e.t) }}</span>
               <span class="tl-text">{{ e.text }}</span>
             </li>
           }
         </ol>
 
-        <p class="timeline-day">{{ todayLabel() }} · {{ todayIsNow() ? 'today' : 'next trading day' }}</p>
+        <p class="timeline-day">
+          {{ todayLabel() }} · {{ todayIsNow() ? 'today' : 'next trading day' }}
+        </p>
         <ol class="timeline-list">
           @for (e of today(); track e.key) {
-            <li class="tl" [class.tl--done]="e.done" [class.tl--act]="e.act"
-                [class.tl--agent]="e.agent">
+            <li
+              class="tl"
+              [class.tl--done]="e.done"
+              [class.tl--act]="e.act"
+              [class.tl--agent]="e.agent"
+            >
               <span class="tl-time">{{ clock(e.t) }}</span>
               <span class="tl-text">{{ e.text }}</span>
             </li>

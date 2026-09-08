@@ -36,12 +36,22 @@ const EVENTS: TickerEvents = {
   ticker: 'NVDA',
   bars: [
     {
-      date: '2026-08-01', timestamp: Date.parse('2026-08-01T00:00:00Z') / 1000,
-      open: 170, high: 176, low: 169, close: 175, volume: 1000,
+      date: '2026-08-01',
+      timestamp: Date.parse('2026-08-01T00:00:00Z') / 1000,
+      open: 170,
+      high: 176,
+      low: 169,
+      close: 175,
+      volume: 1000,
     },
     {
-      date: '2026-08-04', timestamp: Date.parse('2026-08-04T00:00:00Z') / 1000,
-      open: 175, high: 182, low: 174, close: 180, volume: 1200,
+      date: '2026-08-04',
+      timestamp: Date.parse('2026-08-04T00:00:00Z') / 1000,
+      open: 175,
+      high: 182,
+      low: 174,
+      close: 180,
+      volume: 1200,
     },
   ],
   signals: [
@@ -126,7 +136,13 @@ const EVENTS: TickerEvents = {
     },
   ],
   trades: [
-    { side: 'buy', date: '2026-07-08', filled_at: '2026-07-08T14:32:00Z', price: 155, quantity: 10 },
+    {
+      side: 'buy',
+      date: '2026-07-08',
+      filled_at: '2026-07-08T14:32:00Z',
+      price: 155,
+      quantity: 10,
+    },
   ],
   lots: [],
 };

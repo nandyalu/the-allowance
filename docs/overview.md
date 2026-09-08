@@ -56,8 +56,8 @@ The dashboard needs no Discord account, and Discord needs no dashboard. Run eith
 
 ## The signal lifecycle
 
-1. **Born** — An analysis runs, from the morning sweep or an event trigger, and the agent is charged for it. The app stores the decision, the full rationale, all analyst reports, the price at that moment, the parsed time horizon, and the trade plan (see below).
-2. **Read** — The agent sees it at the next decision pass, at 13:35 UTC, alongside up to eleven others from the last three days. It may act on it or ignore it.
+1. **Born** — An analysis runs, either because the agent itself commissioned it (a fresh look at a name, held or merely watched, at $0.05) or because a move-triggered or earnings-driven event asked for one. The app stores the decision, the full rationale, all analyst reports, the price at that moment, the parsed time horizon, and the trade plan (see below).
+2. **Read** — The agent sees it at its own next decision pass — nothing runs on a fixed clock time any more — alongside up to eleven others from the last three days. It may act on it or ignore it.
 3. **Watched** — While the signal matures, the intraday watchdog sends an alert if the price touches the signal's target or reaches a stop level on a held position.
 4. **Graded** — When the time horizon arrives, the bot fetches the full price window since the signal and grades it three ways:
    - **Absolute**: A Buy passes if the price rose at all. A Sell passes if the price fell. A Hold passes if the price stayed inside the horizon's band.
@@ -198,13 +198,13 @@ A vendor figure is an estimate, not the invoice. Two billed readings so far came
 ## The auto trader
 
 A simulated Webull account the model trades on its own, inside a budget you set (default $1,000).
-It runs on two triggers.
+It runs on its own schedule, not a fixed one.
 
-Each weekday at 13:35 UTC — five minutes after the US open — it decides on everything that morning's sweep produced.
+Every decision pass ends with the agent naming when it wants to be asked again — five minutes to four days out. Naming nothing means it is asked at the following open, and a final pass always runs five minutes before the close, whatever it asked for, so no position goes into the night unreviewed.
 And whenever an intraday analysis is triggered during market hours, by an unusual move or a volume spike, it decides again on the spot, at most once every 30 minutes.
 
-The split is deliberate. The sweep lands at 11:00 UTC, two and a half hours before the open — nothing placed then can fill, and deciding its nine signals one at a time would hand the budget out first-come-first-served instead of weighing them against each other.
-An intraday trigger is the opposite: it arrives while the market is open, and a move worth analyzing at midday is worth nothing by the next morning.
+The split is deliberate. A pass the agent scheduled itself is a plan it already made — it can wake before the open to see what has gone stale and commission a fresh look, or through the day to reassess a position.
+An intraday trigger is the opposite: it arrives because the market just moved, while the market is open, and a move worth analyzing at midday is worth nothing by the next morning.
 
 **No order can reach a real account.** The app holds sandbox credentials only, and the order path refuses to run unless the sandbox flag is set, refuses any account that is not the simulated individual-cash one, and refuses an account whose number is not marked simulated.
 There is no sync of a real brokerage account at all. It was removed on 2026-09-01 along with the book it fed.
@@ -337,27 +337,28 @@ Two details worth knowing when reading the page:
 Fills are reported over a live event stream, so a stop that triggers is recorded and posted within a second.
 The fifteen-minute poll behind it is deliberately kept: a stream that silently stops looks exactly like a quiet market, so the stream is a speed improvement over a guarantee rather than a replacement for it.
 
-Why the open rather than straight after the sweep: the sweep finishes well before the market opens, and Webull rejects a market order outright at that hour, so an agent chained to the sweep would look healthy and never fill anything.
+Why the agent tends to wait for the open: Webull rejects a market order outright before the session starts, and the clock line in its prompt says so — a wakeup before the open is still useful for reading what has gone stale and commissioning research, just not for placing an order that will fill.
 
 ## Finding new tickers
 
 The broker's screener suggests candidates: liquid names you do not already follow, over $5 and over a million shares traded, that have not moved more than 30% in the day.
 That last filter is the one that matters. A raw screen is full of the day's pumps — one returned a stock up 927% — and the price floor alone does not catch them, because the pump is what lifted the price over the floor.
 
-Nothing is followed automatically. An analysis costs about seven minutes of GPU, so every ticker you follow lengthens every later sweep, which makes adding one a decision rather than a default.
+Nothing is followed automatically. An analysis costs about seven minutes of GPU and $0.05 out of the agent's own budget every time it orders one, so watching a ticker is a real, recurring cost rather than a free option — which makes adding one a decision rather than a default.
 See them on the Tickers page, with `/candidates`, or in the weekly digest post.
 
-## The daily schedule (all times UTC, weekdays)
+## The daily schedule (all times UTC, weekdays unless noted)
+
+A handful of jobs still run on a clock; everything else is the agent's own choice — see "The auto trader" above.
 
 | Time | What happens |
 |---|---|
-| 11:00 | **Watchlist sweep** — a fresh analysis for every tracked ticker, before the open, so the overnight news cycle is in it (unless `/dailysweep` turned this off) |
-| 12:35 | **Webull sync** — mirrors real holdings into the watchlist and positions (posts only when something changes) |
 | 12:45 | **Regime snapshot** — VIX, SPY vs its 200-day average, and the 10Y–3M yield spread, shown as 🟢/🟡/🔴 |
 | 13:00 | **Earnings check** — runs a fresh analysis for any tracked ticker that reports within 2 days |
 | 13:30–20:00 (9:30–16:00 ET) | **Watchdog**, every 15 minutes — flags a move of 5% or more, volume at 2x the average or more, a stop breach, or a target touch. Big moves and volume spikes also trigger an immediate analysis, at most one per ticker per day |
+| 15:55 ET | **Final pass** — the agent is asked once more before the close, whatever it asked for, so no position goes into the night unreviewed |
 | 21:30 | **Daily grading** — grades and posts matured signals, then rewrites the journal. Stays after the close because grading reads the day's closing price |
-| Fri 23:00 | **Weekly digest** — the week's outcomes, the win-rate trend, alerts, and both books |
+| Fri 23:00 | **Weekly digest** — the week's outcomes, the win-rate trend, alerts, and the book |
 
 ## Data sources
 
