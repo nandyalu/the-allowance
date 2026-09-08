@@ -2,6 +2,12 @@
 site_name = "The Allowance"
 site_url = "https://nandyalu.github.io/the-allowance/"
 site_description = "An autonomous AI agent trading a simulated account with $10,000. It picks what to research, pays for it, and every decision it makes is on the record."
+repo_url = "https://github.com/nandyalu/the-allowance"
+repo_name = "nandyalu/the-allowance"
+# Zensical's own default points "edit this page" at the master branch —
+# this repo's default branch is main, so it has to be stated explicitly
+# or every edit link 404s.
+edit_uri = "edit/main/docs/"
 copyright = """
 Self-hosted docs · not financial advice
 """
