@@ -72,16 +72,28 @@ def test_only_checks_requested_columns():
     assert len(drop_incomplete_bars(frame, ("Open", "Close"))) == 1
 
 
-# These three exercise the whole path now: the fetch happens inside
+# These four exercise the whole path now: the fetch happens inside
 # bars._fetch_history, which is where drop_incomplete_bars is applied, so
 # patching bars.yf_retry keeps the NaN-dropping under test rather than stubbing
 # past it.
+#
+# Each also forces bars._fetch_from_webull to return None. Since 2026-09-08
+# that function runs first and only falls through to yfinance when it comes
+# back empty (see bars.py) — without this, whichever test in the session
+# first reaches quotes._get_market_data() hits the real, unconfigured client
+# and depends on never_reach_the_live_broker's patched get_api_client to fail
+# loudly rather than reach the network. That poisons quotes' own
+# _init_done/_market_data globals (set before the patched call raises, never
+# reset between tests), so every later test in the same process gets a free
+# pass regardless of order — these tests were passing by accident, not
+# because the yfinance path was actually under test.
 
 
 def test_price_window_never_grades_on_a_nan_close(monkeypatch, fake_bar_cache):
     """This is the one that corrupted the scorecard: last_close became NaN, so
     a graded signal stored NaN and its pass/fail came out wrong."""
     frame = _frame([COMPLETE, ALSO_COMPLETE, IN_PROGRESS])
+    monkeypatch.setattr(bars, "_fetch_from_webull", lambda ticker, start, today: None)
     monkeypatch.setattr(bars, "yf_retry", lambda fn: frame)
     monkeypatch.setattr(bars.yf, "Ticker", lambda ticker: None)
 
@@ -100,6 +112,7 @@ def test_price_history_drops_the_unchartable_bar(monkeypatch, fake_bar_cache):
         (newer, *ALSO_COMPLETE[1:]),
         (today, *IN_PROGRESS[1:]),
     ])
+    monkeypatch.setattr(bars, "_fetch_from_webull", lambda ticker, start, today: None)
     monkeypatch.setattr(bars, "yf_retry", lambda fn: frame)
     monkeypatch.setattr(bars.yf, "Ticker", lambda ticker: None)
 
@@ -116,6 +129,7 @@ def test_watchdog_skips_rather_than_alerting_on_a_nan_price(monkeypatch, fake_ba
         (newer, *ALSO_COMPLETE[1:]),
         (today, *IN_PROGRESS[1:]),
     ])
+    monkeypatch.setattr(bars, "_fetch_from_webull", lambda ticker, start, today: None)
     monkeypatch.setattr(bars, "yf_retry", lambda fn: frame)
     monkeypatch.setattr(bars.yf, "Ticker", lambda ticker: None)
     monkeypatch.setattr(watchdog.db, "set_cached_price", lambda *a, **k: None)
@@ -130,6 +144,7 @@ def test_the_in_progress_bar_is_never_cached(monkeypatch, fake_bar_cache):
     """Caching it would freeze a mid-session snapshot and serve it as a close
     once the next reader arrives."""
     frame = _frame([COMPLETE, ALSO_COMPLETE, IN_PROGRESS])
+    monkeypatch.setattr(bars, "_fetch_from_webull", lambda ticker, start, today: None)
     monkeypatch.setattr(bars, "yf_retry", lambda fn: frame)
     monkeypatch.setattr(bars.yf, "Ticker", lambda ticker: None)
 
