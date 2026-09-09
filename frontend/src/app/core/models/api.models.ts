@@ -407,6 +407,16 @@ export interface AgentEvent {
   failed: AgentOrder[];
 }
 
+/** One message the agent left for whoever maintains it — a tool it lacks, a
+ * number it cannot see, a rule that contradicts another. Its own shape
+ * rather than `AgentEventOrder` reused: a note has no ticker and no
+ * quantity, so giving it either here would invite rendering it as an order. */
+export interface AgentNote {
+  id: number;
+  ran_at: string;
+  reason: string;
+}
+
 /** One day of the generated journal, as markdown. */
 export interface JourneyEntry {
   date: string;

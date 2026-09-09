@@ -11,6 +11,7 @@ import {
   ActionResult,
   UnprotectedPosition,
   AgentEvent,
+  AgentNote,
   JourneyEntry,
 } from '../models/api.models';
 
@@ -71,6 +72,13 @@ export class AgentService {
   /** One month's decision passes, newest first. */
   async getEventsForMonth(month: string): Promise<AgentEvent[]> {
     return firstValueFrom(this.http.get<AgentEvent[]>('/api/agent/events', { params: { month } }));
+  }
+
+  /** Every note the agent has ever left, newest first. Its own call rather
+   * than a signal here: unlike load(), the Notes page is the only reader and
+   * fetches once on its own, the same way getEventMonths() does. */
+  async getNotes(): Promise<AgentNote[]> {
+    return firstValueFrom(this.http.get<AgentNote[]>('/api/agent/notes'));
   }
 
   async loadJourney(days = 10): Promise<void> {

@@ -82,6 +82,7 @@ def export_all() -> None:
     _safe("agent_history.json", agent_routes.get_history)
     _safe("agent_curve.json", agent_routes.get_curve)
     _safe("agent_unprotected.json", agent_routes.get_unprotected)
+    _safe("agent_notes.json", agent_routes.get_notes)
     # The Overview page's small recent-activity feed — unaffected by the
     # month files below, which are for the Decisions page's own timeline.
     _safe("agent_events.json", lambda: agent_routes.get_events(limit=200))

@@ -60,7 +60,10 @@ const SNAPSHOT_ROOT = '/data';
 export function toSnapshotPath(urlWithParams: string): { path: string; chartDays?: number } {
   const [pathname, query] = urlWithParams.split('?');
   const params = new URLSearchParams(query ?? '');
-  const segments = pathname.replace(/^\/api\/?/, '').split('/').filter(Boolean);
+  const segments = pathname
+    .replace(/^\/api\/?/, '')
+    .split('/')
+    .filter(Boolean);
 
   switch (segments[0]) {
     case 'agent':
@@ -80,9 +83,13 @@ export function toSnapshotPath(urlWithParams: string): { path: string; chartDays
         if (month) return { path: `${SNAPSHOT_ROOT}/agent_events_${month.replace('-', '')}.json` };
         return { path: `${SNAPSHOT_ROOT}/agent_events.json` };
       }
-      // trades, performance, history, curve, unprotected all follow the
+      // trades, performance, history, curve, unprotected, notes all follow the
       // exporter's agent_<name>.json convention.
-      return { path: segments[1] ? `${SNAPSHOT_ROOT}/agent_${segments[1]}.json` : `${SNAPSHOT_ROOT}/agent.json` };
+      return {
+        path: segments[1]
+          ? `${SNAPSHOT_ROOT}/agent_${segments[1]}.json`
+          : `${SNAPSHOT_ROOT}/agent.json`,
+      };
 
     case 'digest':
       return { path: `${SNAPSHOT_ROOT}/digest.json` };
@@ -107,7 +114,11 @@ export function toSnapshotPath(urlWithParams: string): { path: string; chartDays
       if (segments[1]) return { path: `${SNAPSHOT_ROOT}/signals/${segments[1]}.json` };
       const status = params.get('status');
       const file =
-        status === 'pending' ? 'signals_pending' : status === 'resolved' ? 'signals_resolved' : 'signals_all';
+        status === 'pending'
+          ? 'signals_pending'
+          : status === 'resolved'
+            ? 'signals_resolved'
+            : 'signals_all';
       return { path: `${SNAPSHOT_ROOT}/${file}.json` };
     }
 

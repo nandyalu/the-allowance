@@ -433,6 +433,20 @@ class AgentEventOrderOut(Schema):
     reason: str = ""
 
 
+class AgentNoteOut(Schema):
+    """One message the agent left for whoever maintains it.
+
+    Its own shape rather than ``AgentEventOrderOut`` reused: a note has no
+    ticker and no quantity, and giving it one here would let a future caller
+    render it as if it were an order by mistake, the same trap the frontend's
+    own ``notesIn``/`tradesIn`` split exists to avoid.
+    """
+
+    id: int
+    ran_at: datetime
+    reason: str
+
+
 class AgentEventOut(Schema):
     """One decision pass, with the words that produced it.
 

@@ -2071,7 +2071,10 @@ table {
   color: var(--text-faint);
   font-weight: 700;
   line-height: 1;
-  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
 }
 
 /* Centres a badge of WIDTHpx on the 2px rule at the row's left edge.
@@ -2358,6 +2361,18 @@ table {
 
 .agent-note .hint {
   margin: 0;
+}
+
+/* The Notes page: the same .agent-note block the Decisions page uses inline,
+   one per note, stacked rather than embedded in a card — a note here has no
+   decision pass around it, only its own timestamp. */
+.notes-list {
+  list-style: none;
+  margin: var(--sp-5) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
 }
 
 .big-fact {

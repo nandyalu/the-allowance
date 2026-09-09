@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 
 import { AgentEvent } from '../../core/models/api.models';
 import { AgentService } from '../../core/services/agent.service';
@@ -30,7 +31,7 @@ export interface DecisionDay {
 @Component({
   selector: 'app-decisions-view',
   standalone: true,
-  imports: [DecisionCard],
+  imports: [DecisionCard, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './decisions-view.html',
 })

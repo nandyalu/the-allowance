@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 
 import { AgentEvent } from '../../core/models/api.models';
 import { AgentService } from '../../core/services/agent.service';
@@ -51,7 +52,7 @@ describe('DecisionsView', () => {
     service = new AgentServiceStub();
     await TestBed.configureTestingModule({
       imports: [DecisionsView],
-      providers: [{ provide: AgentService, useValue: service }],
+      providers: [{ provide: AgentService, useValue: service }, provideRouter([])],
     }).compileComponents();
   });
 
@@ -157,6 +158,14 @@ describe('DecisionsView', () => {
     service.failMonths = true;
 
     expect((await render()).textContent).toContain('could not be read');
+  });
+
+  it('links to the notes page, so a note is not only found by scrolling the timeline', async () => {
+    const el = await render();
+    const link = Array.from(el.querySelectorAll('a')).find((a) =>
+      a.textContent?.includes('every note'),
+    );
+    expect(link?.getAttribute('href')).toBe('/decisions/notes');
   });
 
   it('shows a note apart from the orders, and not as an order', async () => {

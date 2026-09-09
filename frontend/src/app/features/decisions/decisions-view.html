@@ -11,6 +11,11 @@
     </div>
   </header>
 
+  <p class="hint">
+    Some passes carry a note — the agent telling whoever maintains it what would help.
+    <a routerLink="/decisions/notes">See every note it has left →</a>
+  </p>
+
   @if (loadingMonths()) {
     <div class="skeleton" style="height: 2.5rem"></div>
     <div class="skeleton" style="height: 10rem"></div>
@@ -33,8 +38,8 @@
     </div>
   } @else {
     <p class="hint">
-      Click a month, or a day inside it, to open or close it. A collapsed month is fetched only
-      once you open it, so this page never loads more of the record than you asked to see.
+      Click a month, or a day inside it, to open or close it. A collapsed month is fetched only once
+      you open it, so this page never loads more of the record than you asked to see.
     </p>
 
     <!-- One continuous rule for months and days alike — a day is a sibling
@@ -73,7 +78,9 @@
               </div>
             </li>
           } @else if (!eventsFor(month).length) {
-            <li class="tl tl--done"><p class="hint">No decision passes in {{ monthLabel(month) }}.</p></li>
+            <li class="tl tl--done">
+              <p class="hint">No decision passes in {{ monthLabel(month) }}.</p>
+            </li>
           } @else {
             @for (day of daysFor(month); track day.key) {
               <!-- tl--done is unconditional here, not tied to

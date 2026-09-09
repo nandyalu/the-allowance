@@ -33,6 +33,13 @@ export const routes: Routes = [
     path: 'decisions',
     loadComponent: () => import('./features/decisions/decisions-view').then((m) => m.DecisionsView),
   },
+  // A note is a detail of a decision pass, the same way a ticker or an
+  // analysis is a detail of a research pass — its own page, reached by
+  // drilling in rather than a seventh link in the main nav.
+  {
+    path: 'decisions/notes',
+    loadComponent: () => import('./features/decisions/notes-view').then((m) => m.NotesView),
+  },
   {
     path: 'research',
     loadComponent: () => import('./features/research/research-view').then((m) => m.ResearchView),

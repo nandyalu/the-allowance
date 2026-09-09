@@ -1,0 +1,49 @@
+<section class="page">
+  <header class="page-head">
+    <div>
+      <h1>Notes</h1>
+      <p class="subtitle">
+        <strong>What the agent says it is missing.</strong> Every note it has left for whoever
+        maintains it — a tool it lacks, a number it cannot see, a rule that contradicts another —
+        pulled out of every decision pass and shown together, newest first.
+      </p>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <div class="skeleton" style="height: 2.5rem"></div>
+    <div class="skeleton" style="height: 10rem"></div>
+  } @else if (failed()) {
+    <div class="empty">
+      <span class="empty-icon" aria-hidden="true">⚠️</span>
+      <strong>The notes could not be read</strong>
+      <span>
+        The app is up but the API did not answer. Every note is stored — this page will show them
+        again shortly.
+      </span>
+    </div>
+  } @else if (!notes().length) {
+    <div class="empty">
+      <p>No notes yet.</p>
+      <p class="hint">
+        A note appears here the moment a decision pass leaves one. Nothing acts on it automatically
+        — it is the agent saying what would help it decide better.
+      </p>
+    </div>
+  } @else {
+    <p class="hint">
+      Nothing here acts on its own. A note is the agent's own message, not a request it expects
+      answered in the moment — building what one asks for is a change like any other, and goes in
+      <a routerLink="/journal">the journal</a> first.
+    </p>
+
+    <ul class="notes-list">
+      @for (note of notes(); track note.id) {
+        <li class="agent-note">
+          <p class="agent-note-label">{{ when(note.ran_at) }}</p>
+          <p class="agent-note-text">{{ note.reason }}</p>
+        </li>
+      }
+    </ul>
+  }
+</section>

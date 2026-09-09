@@ -16,6 +16,7 @@ from fastapi.responses import PlainTextResponse
 
 from backend.api.schemas import (
     AgentEventOut,
+    AgentNoteOut,
     JourneyEntryOut,
     AgentBookOut,
     AgentComparisonOut,
@@ -190,6 +191,33 @@ def get_events(limit: int = 30, month: str | None = None):
     """
     rows = db.get_agent_runs_for_month(month) if month else db.get_agent_runs(limit=limit)
     return _shape_events(rows)
+
+
+@router.get("/notes", response_model=list[AgentNoteOut])
+def get_notes():
+    """Every note the agent has ever left, newest first, pulled out of every
+    pass's ``orders`` rather than only the ones a reader happens to scroll
+    to on the Decisions page.
+
+    A note is the agent addressing whoever maintains it — a tool it lacks, a
+    number it cannot see, a rule that contradicts another. It is primary
+    evidence about the experiment's gaps, so it needs a page of its own
+    rather than living wherever its decision pass happens to fall in the
+    Decisions timeline.
+
+    Built the same way ``get_agent_run_months`` is: one pass over
+    ``db.get_agent_runs()`` rather than a dedicated query. The whole history
+    is at most a few hundred rows, and a note is rare enough that a real
+    query would save nothing worth a second place to keep this table's
+    ordering and JSON-decoding rules in sync.
+    """
+    notes = [
+        AgentNoteOut(id=run.id, ran_at=run.ran_at, reason=order["reason"])
+        for run in db.get_agent_runs()
+        for order in (json.loads(run.orders) if run.orders else [])
+        if order.get("side") == "note" and order.get("reason")
+    ]
+    return list(reversed(notes))
 
 
 @router.get("/events/months", response_model=list[str])

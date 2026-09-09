@@ -16,6 +16,7 @@ describe('toSnapshotPath', () => {
     ['/api/agent/history', '/data/agent_history.json'],
     ['/api/agent/curve', '/data/agent_curve.json'],
     ['/api/agent/unprotected', '/data/agent_unprotected.json'],
+    ['/api/agent/notes', '/data/agent_notes.json'],
     ['/api/agent/events?limit=30', '/data/agent_events.json'],
     ['/api/agent/events/months', '/data/agent_events_months.json'],
     ['/api/agent/events?month=2026-09', '/data/agent_events_202609.json'],
