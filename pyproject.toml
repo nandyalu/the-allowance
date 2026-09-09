@@ -3,6 +3,10 @@ name = "the-allowance"
 version = "0.1.0"
 description = "Discord bot + web dashboard delegating stock analysis to TradingAgents"
 requires-python = ">=3.14"
+# PolyForm Noncommercial 1.0.0 has no SPDX identifier — it isn't an
+# OSI-approved open-source license — so this points at the LICENSE file
+# itself rather than asserting an SPDX expression that doesn't exist.
+license = { file = "LICENSE" }
 dependencies = [
     "tradingagents",
     "python-dotenv>=1.0.0",
