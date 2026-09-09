@@ -797,3 +797,35 @@ def get_agent_runs(limit: int | None = None, *, _session: Session = None) -> lis
         ).all()
         return list(reversed(newest))
     return list(_session.exec(query).all())
+
+
+def _month_of(ran_at: datetime.datetime) -> str:
+    """"YYYY-MM", normalizing a naive timestamp to UTC first — ``ran_at``
+    comes back naive from SQLite here and there (see agent.py's own
+    tzinfo-normalizing at the point it reads this column), and every pass is
+    scheduled in UTC, so naive is UTC in practice."""
+    if ran_at.tzinfo is None:
+        ran_at = ran_at.replace(tzinfo=datetime.timezone.utc)
+    return ran_at.strftime("%Y-%m")
+
+
+def get_agent_run_months() -> list[str]:
+    """Every "YYYY-MM" with at least one decision pass, newest first — the
+    dots on the Decisions page's month timeline. The page fetches this once,
+    up front, so it can show every month before fetching any of them.
+
+    Built from ``get_agent_runs()`` rather than its own query, on purpose:
+    the whole history is at most a few hundred rows, and grouping in Python
+    means there is only one place that reads this table's ordering and
+    timezone quirks (``_month_of``) instead of two."""
+    return sorted({_month_of(run.ran_at) for run in get_agent_runs()}, reverse=True)
+
+
+def get_agent_runs_for_month(month: str) -> list[AgentRun]:
+    """Decision passes in one calendar month ("YYYY-MM"), oldest first — same
+    ordering convention as ``get_agent_runs``, which this filters rather than
+    querying ``ran_at`` directly. SQLite has no real timezone-aware datetime
+    type, and this column already comes back naive in places (``_month_of``
+    normalizes it), so a date-range WHERE risks a silent off-by-timezone
+    mismatch for an optimization this table does not need."""
+    return [run for run in get_agent_runs() if _month_of(run.ran_at) == month]

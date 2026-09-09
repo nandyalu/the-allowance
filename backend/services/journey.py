@@ -78,6 +78,22 @@ def _describe_close(lot) -> str:
     )
 
 
+def months_with_entries(budget: float | None = None) -> list[str]:
+    """Every "YYYY-MM" with at least one recorded day, newest first — the
+    dots on the Journal page's month timeline."""
+    return sorted({day.date.strftime("%Y-%m") for day in build(budget)}, reverse=True)
+
+
+def build_for_month(month: str, budget: float | None = None) -> list[Day]:
+    """One month's days ("YYYY-MM"), oldest first — same ordering as
+    build(), which this filters rather than querying separately. build()
+    already reads the whole history in one pass (trade lots, decision runs,
+    research charges, the equity curve), so there is nothing to gain from a
+    second, narrower version of it — only a second place for the same logic
+    to drift."""
+    return [day for day in build(budget) if day.date.strftime("%Y-%m") == month]
+
+
 def build(budget: float | None = None) -> list[Day]:
     """The whole story so far, oldest day first."""
     budget = budget if budget is not None else agent_book.get_budget()

@@ -120,6 +120,43 @@ def test_the_published_copy_runs_no_jobs(monkeypatch):
     assert started == []
 
 
+# --- the half that is a write in disguise ---------------------------------
+
+
+def test_the_published_copy_never_writes_a_price(monkeypatch):
+    """get_current_price writes every fetch through to the shared TickerPrice
+    table. On the published copy that write is not refused by the HTTP
+    middleware, because it is not a request the middleware ever sees — it is
+    a side effect of answering a GET. Before this test existed, a visitor
+    loading a page could leave a stale yfinance price in the table the
+    private copy's own dashboard reads from next.
+
+    The published copy also has no Webull key, so its own fetch could only
+    ever reach yfinance's delayed close — worse than the live price the
+    private copy already keeps warm here. So it must read the cache instead
+    of fetching, not just skip the write.
+    """
+    from backend.database import db
+    from backend.services import positions
+
+    monkeypatch.setenv("PUBLIC_MODE", "1")
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("the published copy must not fetch a live quote")
+
+    monkeypatch.setattr("backend.services.quotes.get_realtime_price", fail_if_called)
+    db.set_cached_price("AAPL", 123.45, source="webull")
+
+    assert positions.get_current_price("AAPL") == 123.45
+
+
+def test_the_published_copy_reports_no_price_when_nothing_is_cached(monkeypatch):
+    from backend.services import positions
+
+    monkeypatch.setenv("PUBLIC_MODE", "1")
+    assert positions.get_current_price("ZZZZ_NOT_CACHED") is None
+
+
 def test_the_private_copy_starts_everything(monkeypatch):
     import asyncio
 

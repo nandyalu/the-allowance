@@ -116,3 +116,30 @@ export function readerDateTime(instant: Date | string): string {
   }).format(d);
   return `${day}, ${format(d, zone)} ${zoneLabel(d, zone)}`;
 }
+
+/**
+ * A stable "YYYY-MM-DD" key for the reader's calendar day — en-CA formats
+ * dates that way natively. Used to group a list of instants (a month's
+ * decision passes) into same-day sections without assembling the key by
+ * hand and risking it disagreeing with readerDateLabel's own zone.
+ */
+export function readerDateKey(instant: Date | string): string {
+  const d = instant instanceof Date ? instant : new Date(instant);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: localZone() }).format(d);
+}
+
+/**
+ * "Tuesday, 8 September" — the reader's calendar day, no time. The Decisions
+ * page's day-of-month subsection headers pull this out of readerDateTime so
+ * a long list of same-day passes reads as one day's story instead of
+ * repeating the date on every card.
+ */
+export function readerDateLabel(instant: Date | string): string {
+  const d = instant instanceof Date ? instant : new Date(instant);
+  return new Intl.DateTimeFormat('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    timeZone: localZone(),
+  }).format(d);
+}

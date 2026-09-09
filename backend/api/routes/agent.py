@@ -145,24 +145,10 @@ def arm_exits(ticker: str):
     return ActionResultOut(message=result["message"])
 
 
-@router.get("/events", response_model=list[AgentEventOut])
-def get_events(limit: int = 30):
-    """Decision passes, newest first, with the prompt and the answer verbatim.
-
-    The counts and the one-line reasoning already had a home. These are the
-    words behind them, and they are the point: behaviour here is mostly
-    prompt, so a month of runs across three prompt revisions cannot be told
-    apart afterwards without the text each run actually saw.
-
-    Passes before 2026-09-01 carry no prompt or response and cannot be
-    backfilled — the prompt is assembled from a book, a watchlist and a signal
-    list that have all moved since. They are still listed, so the record has no
-    hole in it.
-    """
-    events = []
+def _shape_events(rows: list) -> list[AgentEventOut]:
     # Newest first for a page that reads as a feed.
-    for row in reversed(db.get_agent_runs(limit=limit)):
-        events.append(AgentEventOut(
+    return [
+        AgentEventOut(
             id=row.id,
             ran_at=row.ran_at,
             next_wakeup=row.next_wakeup,
@@ -176,24 +162,73 @@ def get_events(limit: int = 30):
             orders=json.loads(row.orders) if row.orders else [],
             refused=json.loads(row.refusals) if row.refusals else [],
             failed=json.loads(row.failures) if row.failures else [],
-        ))
-    return events
+        )
+        for row in reversed(rows)
+    ]
+
+
+@router.get("/events", response_model=list[AgentEventOut])
+def get_events(limit: int = 30, month: str | None = None):
+    """Decision passes, newest first, with the prompt and the answer verbatim.
+
+    The counts and the one-line reasoning already had a home. These are the
+    words behind them, and they are the point: behaviour here is mostly
+    prompt, so a month of runs across three prompt revisions cannot be told
+    apart afterwards without the text each run actually saw.
+
+    Passes before 2026-09-01 carry no prompt or response and cannot be
+    backfilled — the prompt is assembled from a book, a watchlist and a signal
+    list that have all moved since. They are still listed, so the record has no
+    hole in it.
+
+    ``month`` ("YYYY-MM") returns that whole month instead of the most recent
+    ``limit`` — see ``/events/months`` for which months exist. The two
+    parameters serve different pages: a plain call is the Overview page's
+    small recent-activity feed, and ``month`` is the Decisions page's
+    timeline, which loads one month at a time rather than however many passes
+    the whole history has accumulated.
+    """
+    rows = db.get_agent_runs_for_month(month) if month else db.get_agent_runs(limit=limit)
+    return _shape_events(rows)
+
+
+@router.get("/events/months", response_model=list[str])
+def get_event_months():
+    """Every month with at least one decision pass, newest first.
+
+    Its own route rather than a field on ``/events``, so the Decisions page
+    can draw every dot on its timeline before fetching a single month's
+    worth of prompts and answers.
+    """
+    return db.get_agent_run_months()
 
 
 @router.get("/journey/entries", response_model=list[JourneyEntryOut])
-def get_journey_entries(days: int = 10):
-    """The last ``days`` days of the generated journal, newest first.
-
-    Built from the same `journey.build()` the markdown files come from, so the
-    page and the files can never disagree. One entry per day that has one: a
+def get_journey_entries(days: int = 10, month: str | None = None):
+    """The generated journal, newest first — one entry per day that has one: a
     day the agent did nothing still gets a line, because "nothing happened" is
     a fact about the day rather than a gap in the record.
+
+    Built from the same `journey.build()` the markdown files come from, so the
+    page and the files can never disagree.
+
+    ``month`` ("YYYY-MM") returns that whole month instead of the last
+    ``days`` — see ``/journey/entries/months`` for which months exist. Same
+    split as ``/events``: a plain call is a small recent window, and ``month``
+    is the Journal page's own month-by-month timeline.
     """
-    entries = journey.build()[-days:]
+    entries = journey.build_for_month(month) if month else journey.build()[-days:]
     return [
         JourneyEntryOut(date=day.date, markdown=journey.to_markdown([day], title=""))
         for day in reversed(entries)
     ]
+
+
+@router.get("/journey/entries/months", response_model=list[str])
+def get_journey_months():
+    """Every month with a recorded day, newest first — mirrors
+    get_event_months for the Journal page's own timeline."""
+    return journey.months_with_entries()
 
 
 @router.get("/journey", response_class=PlainTextResponse)

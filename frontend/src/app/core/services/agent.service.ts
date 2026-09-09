@@ -59,11 +59,38 @@ export class AgentService {
     );
   }
 
+  /** Every "YYYY-MM" with at least one decision pass, newest first — the
+   * dots on the Decisions page's timeline. Returned rather than stored on a
+   * signal here: unlike load()/loadEvents(), the Decisions page keeps its
+   * own per-month cache instead of one flat list, since it fetches months
+   * one at a time as a reader opens them. */
+  async getEventMonths(): Promise<string[]> {
+    return firstValueFrom(this.http.get<string[]>('/api/agent/events/months'));
+  }
+
+  /** One month's decision passes, newest first. */
+  async getEventsForMonth(month: string): Promise<AgentEvent[]> {
+    return firstValueFrom(this.http.get<AgentEvent[]>('/api/agent/events', { params: { month } }));
+  }
+
   async loadJourney(days = 10): Promise<void> {
     this._journey.set(
       await firstValueFrom(
         this.http.get<JourneyEntry[]>(`/api/agent/journey/entries?days=${days}`),
       ),
+    );
+  }
+
+  /** Every "YYYY-MM" with at least one recorded day, newest first — the
+   * Journal page's own month timeline, same shape as getEventMonths(). */
+  async getJournalMonths(): Promise<string[]> {
+    return firstValueFrom(this.http.get<string[]>('/api/agent/journey/entries/months'));
+  }
+
+  /** One month's journal entries, newest first. */
+  async getJournalEntriesForMonth(month: string): Promise<JourneyEntry[]> {
+    return firstValueFrom(
+      this.http.get<JourneyEntry[]>('/api/agent/journey/entries', { params: { month } }),
     );
   }
 

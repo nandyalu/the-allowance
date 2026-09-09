@@ -2032,6 +2032,108 @@ table {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+/* --- The Decisions page's month timeline -------------------------------------
+   Reuses .tl from the homepage's rhythm section — same vertical rule per
+   entry — but full width rather than inside .timeline's narrow sticky
+   sidebar, and flat rather than nested: a month's .tl and its days' .tl
+   entries are siblings on one continuous rule, not a rule inside a rule.
+
+   .tl--toggle marks a row as a click target rather than a plain record of
+   what happened — the one thing genuinely different from the homepage's
+   rhythm timeline, which .tl/.tl--done were built for and which this must
+   not change the look of. It suppresses .tl's own ::before dot and puts a
+   real .tl-mark badge inside the button instead: a pseudo-element anchored
+   to the *row's* top (which can be tall, once a month's days are showing)
+   can only ever be centred against one particular line of text by luck, so
+   the mark needed to move inside the flex row it is actually meant to sit
+   beside — vertical centring becomes align-items, not a guessed em offset. */
+
+.tl--toggle::before {
+  content: none;
+}
+
+.tl-button {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  cursor: pointer;
+}
+
+.tl-mark {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--text-faint);
+  font-weight: 700;
+  line-height: 1;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+/* Centres a badge of WIDTHpx on the 2px rule at the row's left edge.
+   Content starts at (border-width + padding-left); the badge's own centre
+   needs to land on the rule's centre (border-width / 2), so it pulls back
+   by padding-left + half the border + half its own width. Kept as two
+   sized variants rather than one, since the month badge is twice the
+   day badge's size and each needs its own pull-back to match. */
+.tl-mark--day {
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid var(--border-strong);
+  font-size: 0.65rem;
+  margin-left: calc(-1 * var(--sp-4) - 1px - 7.5px);
+}
+
+.tl-mark--month {
+  width: 30px;
+  height: 30px;
+  border: 2px solid var(--border-strong);
+  font-size: 1.1rem;
+  margin-left: calc(-1 * var(--sp-4) - 1px - 15px);
+}
+
+/* Two different things, on purpose. tl--done colours the *line* — it stays
+   accent for a day's whole row as long as its month is open, since a day
+   only exists in the DOM at all while that is true, regardless of whether
+   that particular day is itself open or closed. tl--mark-open colours the
+   *badge*, which does track this row's own state: a closed day inside an
+   open month shows a hollow "+", even on a line that stays coloured
+   straight through it. */
+.tl--mark-open .tl-mark {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.tl-button:hover .tl-mark {
+  border-color: var(--accent);
+}
+
+.tl-month {
+  font-size: var(--t-lg);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.tl-day {
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.day-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  margin: var(--sp-3) 0 var(--sp-2);
+}
+
 /* A moment the agent chose for itself, as against a job that runs on a clock.
    This is the distinction the page exists to show, so the time is marked
    rather than the text — the words already say what happened, and colouring

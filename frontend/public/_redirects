@@ -1,0 +1,6 @@
+# Cloudflare Pages serves a real file (including anything under /data/) if
+# one exists at the requested path, and only falls through to this rule
+# otherwise. So a direct link to /book, or a page refresh on it, gets
+# index.html and lets the Angular Router take it from there — the same thing
+# backend/app.py's own catch-all route already does for the live site.
+/*  /index.html  200

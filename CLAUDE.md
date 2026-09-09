@@ -56,12 +56,65 @@ Two copies of the compose config exist and are **not synced automatically**:
   (`dockge/` is gitignored, not tracked in this repo). Edit this one.
   `analyst-bot.compose.yaml` is deleted; that deployment ended 2026-09-01.
 - `/opt/stacks/trading-experiment/compose.yaml` + `.env` — the actually-deployed
-  copy, managed via the Dockge UI. **Root-owned**, outside this repo, and
-  already drifted from the template (Discord/Webull secrets are pasted in
-  directly there instead of using `${VAR}` substitution). Applying a repo
-  edit to the deployed stack means manually re-applying the diff in the
-  Dockge UI's compose editor — never wholesale-replace its `environment:`
-  block or you'll clobber the hardcoded secrets.
+  copy, managed via the Dockge UI. **Root-owned**, outside this repo. Applying
+  a repo edit to the deployed stack means manually re-applying the diff in the
+  Dockge UI's compose editor, since the two files are not synced automatically.
+  **As of 2026-09-09, every secret for every container in this stack (and
+  others on this host) lives in `.env` and is read with `${VAR}` substitution**
+  — the earlier drift, where Discord and Webull secrets were pasted directly
+  into the deployed `environment:` block, is gone. A wholesale replace of the
+  `environment:` block is safe now; check `.env` first if a value still looks
+  hardcoded.
+
+**The public site is a fully static Cloudflare Pages deployment as of
+2026-09-09, at `the-allowance.nandyalu.com` (a subdomain of the domain bought
+that same day).** It went through a live read-only mirror first, briefly:
+standing up a second container (`trading-experiment-public`, `PUBLIC_MODE=1`)
+behind a Cloudflare Tunnel surfaced two real gaps in "read-only" as a
+live-backend property — a read request's own database side effect wasn't
+caught by the write-guard middleware (see `positions.get_current_price`), and
+a Webull-sandbox flag read that container's own empty environment instead of
+the real agent's. Both were patched, but the pattern was the point: a live
+backend on the public side can keep developing this class of gap no matter
+how carefully it's gated. The fix was to remove the live backend from the
+public path entirely rather than keep patching it:
+
+- `backend/services/snapshot_export.py`, run every 15 minutes by
+  `backend/tasks/scheduler.py` on the *private* container (never on
+  `PUBLIC_MODE`, so it can only ever run where live data actually is),
+  renders every public page's data to static JSON under
+  `data/public_snapshot/` on the shared `agent_data` volume.
+- `frontend/angular.json`'s `public` build configuration
+  (`ng build --configuration=production,public`) produces a second Angular
+  bundle with no `/settings` route at all — not hidden, absent from the
+  bundle — and `frontend/src/app/core/static-data.interceptor.ts` redirects
+  every `/api/...` call to the matching snapshot file, so none of the
+  existing services or components needed to change. The Decisions and
+  Journal pages were rebuilt around this at the same time: both now load a
+  month at a time on a click-to-expand timeline (newest month and day open by
+  default, everything older fetched only when opened) instead of shipping a
+  fixed recent window or the whole history at once.
+- **`Dockerfile.pages-publisher` + `scripts/publish_pages.sh`** is the
+  `pages-publisher` container in the compose file above, combining the public
+  Angular build with the exporter's JSON and pushing it to Cloudflare Pages
+  via `wrangler` on the same 15-minute loop. It is a separate image from the
+  main one on purpose — the main `Dockerfile` deliberately keeps Node out of
+  the runtime image, and wrangler is the only supported way to push files to
+  Cloudflare Pages (there is no documented plain REST API for it). Needs
+  `CLOUDFLARE_API_TOKEN` (Account → Cloudflare Pages → Edit),
+  `CLOUDFLARE_ACCOUNT_ID`, and optionally `PAGES_PROJECT_NAME` in `.env`. Its
+  volume mount onto the shared data is read-only — this container has no
+  reason to ever write to it, and confirmed refusing to (`touch` inside it
+  fails with a read-only-filesystem error).
+
+**`trading-bot-public` and `cloudflared` are retired**, along with the Zero
+Trust tunnel itself (deleted outright, not just unused) — the public site is
+now files with no server, no database connection, and no credentials
+anywhere near it. `the-allowance.nandyalu.com`'s DNS points at the Cloudflare
+Pages project directly (Workers & Pages → the project → Custom domains),
+which also means the domain's *only* remaining live surface is
+`trading-experiment` (private) and `trading-experiment-pages-publisher` —
+both containers listed in `docker ps`, nothing else.
 
 **One deployment, `trading-experiment`, live since 2026-09-02.** The
 old `trading-bot` and `analyst-bot` containers stopped on 2026-09-01; their volumes
@@ -807,7 +860,7 @@ Open, and worth building:
 - **Replay** — re-run a past decision pass against a changed prompt, so a prompt change can be told apart from a market change. Behaviour here is mostly prompt, which makes this the missing measurement rather than a nice-to-have.
 - **Backtester** — grade the strategy over history rather than only forward.
 - **A watchlist ageing rule.** The cap of 30 stops the list growing without limit, but nothing drops a name the agent has stopped holding and stopped asking about. At the cap it must trade one name's coverage for another, which it may do but is never prompted to revisit.
-- **A position-size cap** — *deliberately absent, not forgotten.* The agent has put 100% of the book into one name. A cap changes what the agent may decide rather than correcting its arithmetic, so it needs its own journal entry and its own reasoning, not a quiet fix. See the 2026-08-30 entry in [JOURNEY.md](JOURNEY.md).
+- **A position-size cap** — *deliberately absent, not forgotten.* The agent has put 100% of the book into one name. A cap changes what the agent may decide rather than correcting its arithmetic, so it needs its own journal entry and its own reasoning, not a quiet fix. See the 2026-08-29 entry in [the analyst experiment](docs/analyst-experiment.md).
 
 Permanent non-goals:
 

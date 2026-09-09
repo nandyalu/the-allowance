@@ -1,5 +1,4 @@
 import { TestBed } from '@angular/core/testing';
-import { signal } from '@angular/core';
 
 import { AgentEvent } from '../../core/models/api.models';
 import { AgentService } from '../../core/services/agent.service';
@@ -27,11 +26,22 @@ function event(over: Partial<AgentEvent> = {}): AgentEvent {
   };
 }
 
+/** The newest month is expanded (and fetched) as soon as the page loads —
+ * every test seeds exactly that one month, since that is what a reader sees
+ * without clicking anything. A separate spec covers opening an older one. */
 class AgentServiceStub {
-  readonly events = signal<AgentEvent[]>([]);
-  readonly journey = signal([]);
-  async loadEvents(): Promise<void> {}
-  async loadJourney(): Promise<void> {}
+  months: string[] = ['2026-09'];
+  eventsByMonth: Record<string, AgentEvent[]> = { '2026-09': [] };
+  failMonths = false;
+
+  async getEventMonths(): Promise<string[]> {
+    if (this.failMonths) throw new Error('network error');
+    return this.months;
+  }
+
+  async getEventsForMonth(month: string): Promise<AgentEvent[]> {
+    return this.eventsByMonth[month] ?? [];
+  }
 }
 
 describe('DecisionsView', () => {
@@ -45,18 +55,27 @@ describe('DecisionsView', () => {
     }).compileComponents();
   });
 
-  /** The component clears `loading` in a `finally`, so the skeleton is still on
-   * screen until the stub's promise has settled. */
+  /** The component clears its loading signals in `.finally()`s, so the
+   * skeleton is still on screen until every chained promise the stub returns
+   * has settled — `whenStable()` drains that whole chain, nested calls
+   * included, in one wait. */
   async function render(): Promise<HTMLElement> {
     const fixture = TestBed.createComponent(DecisionsView);
     await fixture.whenStable();
     return fixture.nativeElement as HTMLElement;
   }
 
+  function clickButtonContaining(el: HTMLElement, text: string): void {
+    const button = Array.from(el.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes(text),
+    );
+    button?.click();
+  }
+
   it('hides the prompt until it is asked for', async () => {
     // A prompt runs to tens of kilobytes. A feed that opens with one is a feed
     // nobody scrolls.
-    service.events.set([event()]);
+    service.eventsByMonth['2026-09'] = [event()];
 
     const el = await render();
 
@@ -65,19 +84,19 @@ describe('DecisionsView', () => {
   });
 
   it('shows the prompt verbatim once opened', async () => {
-    service.events.set([event()]);
+    service.eventsByMonth['2026-09'] = [event()];
     const fixture = TestBed.createComponent(DecisionsView);
     await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
 
-    fixture.componentInstance.toggle(1, 'prompt');
+    clickButtonContaining(el, 'Show the prompt');
     await fixture.whenStable();
 
-    const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('.verbatim')?.textContent).toContain('You manage a $10,000 account');
   });
 
   it('lists what the pass actually did', async () => {
-    service.events.set([event()]);
+    service.eventsByMonth['2026-09'] = [event()];
 
     const el = await render();
 
@@ -87,7 +106,7 @@ describe('DecisionsView', () => {
 
   it('shows a refusal with its reason', async () => {
     // The interesting half. "1 rejected" says nothing; the reason is a finding.
-    service.events.set([
+    service.eventsByMonth['2026-09'] = [
       event({
         orders: [],
         refused: [
@@ -100,7 +119,7 @@ describe('DecisionsView', () => {
           },
         ],
       }),
-    ]);
+    ];
 
     expect((await render()).textContent).toContain('costs more than the cash left');
   });
@@ -108,7 +127,7 @@ describe('DecisionsView', () => {
   it('says a pass kept no prompt rather than showing an empty panel', async () => {
     // Every pass before 2026-09-01. The prompt cannot be reconstructed, and a
     // blank panel would read as a bug.
-    service.events.set([event({ prompt: null, response: null })]);
+    service.eventsByMonth['2026-09'] = [event({ prompt: null, response: null })];
 
     const el = await render();
 
@@ -117,24 +136,33 @@ describe('DecisionsView', () => {
   });
 
   it('reports a pass that did nothing as nothing, not as blank', async () => {
-    service.events.set([event({ orders: [], refused: [] })]);
+    service.eventsByMonth['2026-09'] = [event({ orders: [], refused: [] })];
 
     expect((await render()).textContent).toContain('nothing');
   });
 
   it('says why a pass was skipped', async () => {
-    service.events.set([event({ skipped: 'the market was shut', orders: [] })]);
+    service.eventsByMonth['2026-09'] = [event({ skipped: 'the market was shut', orders: [] })];
 
     expect((await render()).textContent).toContain('the market was shut');
   });
 
   it('says the feed is empty rather than rendering nothing at all', async () => {
+    service.months = [];
+
     expect((await render()).textContent).toContain('No decision passes recorded yet');
   });
+
+  it('says the decision record could not be read when the month list itself fails', async () => {
+    service.failMonths = true;
+
+    expect((await render()).textContent).toContain('could not be read');
+  });
+
   it('shows a note apart from the orders, and not as an order', async () => {
     // A note has no ticker and no quantity. Rendered in the orders list it
     // would read as a trade in a stock called "".
-    service.events.set([
+    service.eventsByMonth['2026-09'] = [
       event({
         orders: [
           { side: 'buy', ticker: 'AAPL', quantity: 2, reason: 'cheap' },
@@ -143,7 +171,7 @@ describe('DecisionsView', () => {
         refused: [],
         failed: [],
       }),
-    ]);
+    ];
 
     const el = await render();
 
@@ -156,7 +184,7 @@ describe('DecisionsView', () => {
     // The two mean different things and the page has to say so: one is the
     // agent's arithmetic being wrong, the other is the world declining an
     // order it formed correctly.
-    service.events.set([
+    service.eventsByMonth['2026-09'] = [
       event({
         orders: [],
         refused: [
@@ -166,7 +194,7 @@ describe('DecisionsView', () => {
           { side: 'buy', ticker: 'NVDA', quantity: 1, reason: null, why: 'unsettled funds' },
         ],
       }),
-    ]);
+    ];
 
     const text = (await render()).textContent ?? '';
 
@@ -175,19 +203,8 @@ describe('DecisionsView', () => {
     expect(text).toContain('broker said no');
   });
 
-  /** UTC is not what anyone should read. The pass time is rendered on the
-   * reader's own clock with the zone named, so it is unambiguous without a
-   * second line — and the old fixed "UTC" label must not come back, because it
-   * was wrong for every reader not already on UTC. */
-  /** The pass time is rendered on the reader's own clock with that zone named.
-   *
-   * The assertion is that the time and its label agree, not that the label is
-   * any particular string — on a machine in UTC, "UTC" is the correct label.
-   * The old code failed exactly this: it formatted in local time and printed a
-   * fixed "UTC", so the two disagreed for every reader outside UTC. Run the
-   * suite under `TZ=Asia/Kolkata` to see the difference. */
   it('shows the pass time on the reader clock, with that zone named', async () => {
-    service.events.set([event()]);
+    service.eventsByMonth['2026-09'] = [event()];
     const el = await render();
 
     const head = el.querySelector('.card-head strong')?.textContent ?? '';
@@ -206,5 +223,138 @@ describe('DecisionsView', () => {
 
     expect(head).toContain(time);
     expect(head).toContain(label);
+  });
+
+  // --- the month timeline itself ---------------------------------------
+
+  it('draws one dot per month and expands only the newest one', async () => {
+    service.months = ['2026-09', '2026-08'];
+    service.eventsByMonth = {
+      '2026-09': [event({ id: 1, reasoning: 'september pass' })],
+      '2026-08': [event({ id: 2, reasoning: 'august pass' })],
+    };
+
+    const el = await render();
+
+    // 2 months + the 1 day inside September, the only expanded month.
+    expect(el.querySelectorAll('.tl').length).toBe(3);
+    expect(el.textContent).toContain('september pass');
+    expect(el.textContent).not.toContain('august pass');
+  });
+
+  it('fetches and shows an older month only once its dot is clicked', async () => {
+    service.months = ['2026-09', '2026-08'];
+    service.eventsByMonth = {
+      '2026-09': [event({ id: 1, reasoning: 'september pass' })],
+      '2026-08': [event({ id: 2, reasoning: 'august pass' })],
+    };
+    const fixture = TestBed.createComponent(DecisionsView);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.textContent).not.toContain('august pass');
+
+    clickButtonContaining(el, 'August 2026');
+    await fixture.whenStable();
+
+    expect(el.textContent).toContain('august pass');
+  });
+
+  it('groups two passes on the same calendar day under one day header', async () => {
+    service.eventsByMonth['2026-09'] = [
+      event({ id: 1, ran_at: '2026-09-08T20:00:00Z', reasoning: 'evening pass' }),
+      event({ id: 2, ran_at: '2026-09-08T13:35:00Z', reasoning: 'afternoon pass' }),
+    ];
+
+    const el = await render();
+
+    expect(el.querySelectorAll('.tl-day').length).toBe(1);
+    expect(el.textContent).toContain('evening pass');
+    expect(el.textContent).toContain('afternoon pass');
+  });
+
+  it('gives two passes on different days their own headers', async () => {
+    service.eventsByMonth['2026-09'] = [
+      event({ id: 1, ran_at: '2026-09-08T13:35:00Z' }),
+      event({ id: 2, ran_at: '2026-09-01T13:35:00Z' }),
+    ];
+
+    const el = await render();
+
+    expect(el.querySelectorAll('.tl-day').length).toBe(2);
+  });
+
+  it('shows a day expanded by default, as soon as its month opens', async () => {
+    service.eventsByMonth['2026-09'] = [event({ reasoning: 'september pass' })];
+
+    const el = await render();
+
+    expect(el.textContent).toContain('september pass');
+  });
+
+  it('opens only the newest day by default when a month has more than one', async () => {
+    service.eventsByMonth['2026-09'] = [
+      event({ id: 1, ran_at: '2026-09-08T13:35:00Z', reasoning: 'newest day pass' }),
+      event({ id: 2, ran_at: '2026-09-01T13:35:00Z', reasoning: 'older day pass' }),
+    ];
+
+    const el = await render();
+
+    expect(el.textContent).toContain('newest day pass');
+    expect(el.textContent).not.toContain('older day pass');
+  });
+
+  it('opening the collapsed older day reveals its cards', async () => {
+    service.eventsByMonth['2026-09'] = [
+      event({ id: 1, ran_at: '2026-09-08T13:35:00Z' }),
+      event({ id: 2, ran_at: '2026-09-01T13:35:00Z', reasoning: 'older day pass' }),
+    ];
+    const fixture = TestBed.createComponent(DecisionsView);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.textContent).not.toContain('older day pass');
+
+    clickButtonContaining(el, 'Tuesday 1 September');
+    await fixture.whenStable();
+
+    expect(el.textContent).toContain('older day pass');
+  });
+
+  it('collapses and reopens a day on click, independently of its month', async () => {
+    service.eventsByMonth['2026-09'] = [event({ reasoning: 'september pass' })];
+    const fixture = TestBed.createComponent(DecisionsView);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.textContent).toContain('september pass');
+
+    clickButtonContaining(el, 'Tuesday 1 September');
+    await fixture.whenStable();
+    expect(el.textContent).not.toContain('september pass');
+
+    clickButtonContaining(el, 'Tuesday 1 September');
+    await fixture.whenStable();
+    expect(el.textContent).toContain('september pass');
+  });
+
+  it('collapses an expanded month back on a second click, without losing the cached events', async () => {
+    service.months = ['2026-09', '2026-08'];
+    service.eventsByMonth = { '2026-09': [], '2026-08': [event({ reasoning: 'august pass' })] };
+    const fixture = TestBed.createComponent(DecisionsView);
+    await fixture.whenStable();
+    const el = fixture.nativeElement as HTMLElement;
+
+    clickButtonContaining(el, 'August 2026');
+    await fixture.whenStable();
+    expect(el.textContent).toContain('august pass');
+
+    clickButtonContaining(el, 'August 2026');
+    await fixture.whenStable();
+    expect(el.textContent).not.toContain('august pass');
+
+    clickButtonContaining(el, 'August 2026');
+    await fixture.whenStable();
+    expect(el.textContent).toContain('august pass');
   });
 });

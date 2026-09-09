@@ -11,8 +11,8 @@
     </div>
   </header>
 
-  @if (loading()) {
-    <div class="skeleton" style="height: 10rem"></div>
+  @if (loadingMonths()) {
+    <div class="skeleton" style="height: 2.5rem"></div>
     <div class="skeleton" style="height: 10rem"></div>
   } @else if (failed()) {
     <div class="empty">
@@ -23,7 +23,7 @@
         again shortly.
       </span>
     </div>
-  } @else if (!events().length) {
+  } @else if (!months().length) {
     <div class="empty">
       <p>No decision passes recorded yet.</p>
       <p class="hint">
@@ -32,132 +32,83 @@
       </p>
     </div>
   } @else {
-    @for (event of events(); track event.id) {
-      <article class="card">
-        <div class="card-head">
-          <div>
-            <strong>{{ when(event.ran_at) }}</strong>
-            <span class="muted"> — {{ did(event) }}</span>
-            @if (event.next_wakeup) {
-              <span class="muted"> · asked to be woken at {{ wokenAt(event.next_wakeup) }}</span>
-            }
-          </div>
-          @if (event.cash !== null) {
-            <span class="muted">
-              cash ${{ event.cash | number: '1.2-2' }} · equity ${{
-                event.equity | number: '1.2-2'
-              }}
-              @if (event.research_spent) {
-                · research ${{ event.research_spent | number: '1.2-2' }}
-              }
-            </span>
-          }
-        </div>
+    <p class="hint">
+      Click a month, or a day inside it, to open or close it. A collapsed month is fetched only
+      once you open it, so this page never loads more of the record than you asked to see.
+    </p>
 
-        <div class="card-body">
-          @if (event.reasoning) {
-            <p class="reasoning">{{ event.reasoning }}</p>
-          }
+    <!-- One continuous rule for months and days alike — a day is a sibling
+         entry on the same line as its month, not a second nested rule
+         offset beside it. Expanding a month reveals its days as more
+         entries on this list; expanding a day reveals its cards. -->
+    <ol class="timeline-list">
+      @for (month of months(); track month) {
+        <li
+          class="tl tl--toggle"
+          [class.tl--done]="isExpanded(month)"
+          [class.tl--mark-open]="isExpanded(month)"
+        >
+          <button
+            type="button"
+            class="tl-button"
+            [attr.aria-pressed]="isExpanded(month)"
+            (click)="toggleMonth(month)"
+          >
+            <span class="tl-mark tl-mark--month" aria-hidden="true">{{
+              isExpanded(month) ? '−' : '+'
+            }}</span>
+            <span class="tl-month">{{ monthLabel(month) }}</span>
+          </button>
+        </li>
 
-          @if (notesIn(event).length) {
-            <div class="agent-note">
-              <p class="agent-note-label">The agent asked for something</p>
-              @for (note of notesIn(event); track $index) {
-                <p class="agent-note-text">{{ note }}</p>
-              }
-              <p class="hint">
-                Nothing acts on this automatically. It is the agent telling whoever maintains it
-                what would help — a tool it lacks, a number it cannot see. Building what it asks for
-                is a change like any other, and goes in the journal first.
-              </p>
-            </div>
-          }
-
-          @if (tradesIn(event).length || event.refused.length || failedIn(event).length) {
-            <ul class="orders">
-              @for (order of tradesIn(event); track $index) {
-                <li>
-                  <span class="side side--{{ order.side }}">{{ order.side }}</span>
-                  <strong>{{ order.ticker }}</strong>
-                  @if (order.quantity) {
-                    <span>{{ order.quantity }}</span>
-                  }
-                  @if (order.reason) {
-                    <span class="muted">{{ order.reason }}</span>
-                  }
-                </li>
-              }
-              @for (order of event.refused; track $index) {
-                <li>
-                  <span class="side side--refused"><app-term key="refused" /></span>
-                  <strong>{{ order.ticker }}</strong>
-                  <span class="muted">{{ order.why }}</span>
-                </li>
-              }
-              @for (order of failedIn(event); track $index) {
-                <li>
-                  <span class="side side--refused"><app-term key="broker-said-no" /></span>
-                  <strong>{{ order.ticker }}</strong>
-                  <span class="muted">{{ order.why }}</span>
-                </li>
-              }
-            </ul>
-            @if (failedIn(event).length) {
-              <p class="hint">
-                <strong>"Broker said no" is not the same as "refused".</strong> A refusal is the
-                agent's own arithmetic being wrong. This is an order it formed correctly that the
-                broker would not take — unsettled cash, a closed session, a symbol it will not
-                trade. The agent is shown these on its next few passes so it does not simply propose
-                the same thing again.
-              </p>
-            }
-            @if (event.refused.length) {
-              <!-- Worth explaining once per pass rather than assuming it reads
-                   as self-evident: a refusal is the most revealing thing on the
-                   page, and a reader who takes it for an error misses it. -->
-              <p class="hint">
-                A refusal is Python declining an order that cannot be executed as stated — more cash
-                than the agent holds, more shares than it owns, a stop that would trigger the moment
-                it was placed. <strong>The order is dropped, never resized.</strong> Shrinking it
-                would quietly turn the agent's decision into a different one, and the record would
-                then describe a strategy nobody chose. The agent is told what was refused and asked
-                once more.
-              </p>
-            }
-          }
-
-          @if (asked(event)) {
-            <div class="transcript">
-              <button
-                type="button"
-                class="btn btn-ghost btn-sm"
-                (click)="toggle(event.id, 'prompt')"
-              >
-                {{ isOpen(event.id, 'prompt') ? 'Hide' : 'Show' }} the prompt
-              </button>
-              <button
-                type="button"
-                class="btn btn-ghost btn-sm"
-                (click)="toggle(event.id, 'response')"
-              >
-                {{ isOpen(event.id, 'response') ? 'Hide' : 'Show' }} the answer
-              </button>
-            </div>
-            @if (isOpen(event.id, 'prompt')) {
-              <pre class="verbatim">{{ event.prompt }}</pre>
-            }
-            @if (isOpen(event.id, 'response')) {
-              <pre class="verbatim">{{ event.response }}</pre>
-            }
+        @if (isExpanded(month)) {
+          @if (isLoadingMonth(month)) {
+            <li class="tl tl--done"><div class="skeleton" style="height: 10rem"></div></li>
+          } @else if (isMonthFailed(month)) {
+            <li class="tl tl--done">
+              <div class="empty">
+                <span class="empty-icon" aria-hidden="true">⚠️</span>
+                <strong>{{ monthLabel(month) }} could not be read</strong>
+                <span>The app is up but the API did not answer. Try opening it again.</span>
+              </div>
+            </li>
+          } @else if (!eventsFor(month).length) {
+            <li class="tl tl--done"><p class="hint">No decision passes in {{ monthLabel(month) }}.</p></li>
           } @else {
-            <p class="hint">
-              This pass kept no prompt. Passes before 2026-09-01 were not recorded, and they cannot
-              be reconstructed — the prompt is built from a book, a watchlist and a signal list that
-              have all moved since.
-            </p>
+            @for (day of daysFor(month); track day.key) {
+              <!-- tl--done is unconditional here, not tied to
+                   isDayExpanded: a day only renders at all while its month
+                   is open, so its segment of the line stays coloured
+                   through that whole time regardless of whether this
+                   particular day is itself open or closed. -->
+              <li
+                class="tl tl--toggle tl--day tl--done"
+                [class.tl--mark-open]="isDayExpanded(day.key)"
+              >
+                <button
+                  type="button"
+                  class="tl-button"
+                  [attr.aria-pressed]="isDayExpanded(day.key)"
+                  (click)="toggleDay(day.key)"
+                >
+                  <span class="tl-mark tl-mark--day" aria-hidden="true">{{
+                    isDayExpanded(day.key) ? '−' : '+'
+                  }}</span>
+                  <span class="tl-day">{{ day.label }}</span>
+                </button>
+
+                @if (isDayExpanded(day.key)) {
+                  <div class="day-cards">
+                    @for (event of day.events; track event.id) {
+                      <app-decision-card [event]="event" />
+                    }
+                  </div>
+                }
+              </li>
+            }
           }
-        </div>
-      </article>
-    }
+        }
+      }
+    </ol>
   }
 </section>

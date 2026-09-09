@@ -15,47 +15,10 @@
     <code>JOURNEY.md</code>, because the app cannot know it.
   </p>
 
-  @if (digest(); as d) {
-    <section class="card">
-      <div class="card-head">
-        <h2>The week to {{ d.week_start }}</h2>
-      </div>
-      <div class="card-body stack">
-        <dl class="scoreboard-facts">
-          <div>
-            <dt>New analyses</dt>
-            <dd>{{ d.new_signals.length }}</dd>
-          </div>
-          <div>
-            <dt>Graded</dt>
-            <dd>{{ d.resolved.length }}</dd>
-          </div>
-          <div>
-            <dt>Right, last 30 days</dt>
-            <dd>{{ rate(d.win_rate_30d[0], d.win_rate_30d[1]) }}</dd>
-          </div>
-          <div>
-            <dt>Right, all time</dt>
-            <dd>{{ rate(d.win_rate_all[0], d.win_rate_all[1]) }}</dd>
-          </div>
-          <div>
-            <dt>Alerts</dt>
-            <dd>{{ d.alerts.length }}</dd>
-          </div>
-        </dl>
-        @if (d.book_lines?.length) {
-          <div>
-            <p class="muted-small">Holding at the end of the week</p>
-            @for (line of d.book_lines ?? []; track line) {
-              <p class="big-fact">{{ line }}</p>
-            }
-          </div>
-        }
-      </div>
-    </section>
-  }
-
-  @if (failed()) {
+  @if (loadingMonths()) {
+    <div class="skeleton" style="height: 2.5rem"></div>
+    <div class="skeleton" style="height: 8rem"></div>
+  } @else if (failed()) {
     <div class="empty">
       <span class="empty-icon" aria-hidden="true">⚠️</span>
       <strong>The journal could not be read</strong>
@@ -64,29 +27,150 @@
         again shortly.
       </span>
     </div>
-  }
-
-  @if (loading()) {
-    <div class="skeleton" style="height: 8rem"></div>
-    <div class="skeleton" style="height: 8rem"></div>
-  } @else if (!entries().length) {
+  } @else if (!months().length) {
     <div class="empty">
       <p>Nothing recorded yet.</p>
       <p class="hint">A day appears here once the agent has run a decision pass on it.</p>
     </div>
   } @else {
-    @for (entry of entries(); track entry.date) {
-      <article class="card">
-        <div class="card-head">
-          <!-- Formatted in UTC on purpose. `date` is a calendar date, and a
-               date-only string parses as UTC midnight — rendered on a local clock
-               it shows the day before for every reader west of UTC. -->
-          <strong>{{ entry.date | date: 'EEEE d MMMM' : 'UTC' }}</strong>
-        </div>
-        <div class="card-body">
-          <pre class="journey-body">{{ body(entry.markdown) }}</pre>
-        </div>
-      </article>
-    }
+    <p class="hint">
+      Click a month, or a day inside it, to open or close it. A collapsed month is fetched only
+      once you open it, so this page never loads more of the record than you asked to see. The
+      weekly digest sits among the days it summarises, not above them — it covers the seven days
+      before whenever it was last generated, not a fixed calendar week.
+    </p>
+
+    <!-- Same rule and badge structure as the Decisions page: one continuous
+         line for months and days alike, filled while a month is open
+         regardless of which of its days are themselves open or closed. -->
+    <ol class="timeline-list">
+      @for (month of months(); track month) {
+        <li
+          class="tl tl--toggle"
+          [class.tl--done]="isExpanded(month)"
+          [class.tl--mark-open]="isExpanded(month)"
+        >
+          <button
+            type="button"
+            class="tl-button"
+            [attr.aria-pressed]="isExpanded(month)"
+            (click)="toggleMonth(month)"
+          >
+            <span class="tl-mark tl-mark--month" aria-hidden="true">{{
+              isExpanded(month) ? '−' : '+'
+            }}</span>
+            <span class="tl-month">{{ monthLabel(month) }}</span>
+          </button>
+        </li>
+
+        @if (isExpanded(month)) {
+          @if (isLoadingMonth(month)) {
+            <li class="tl tl--done"><div class="skeleton" style="height: 8rem"></div></li>
+          } @else if (isMonthFailed(month)) {
+            <li class="tl tl--done">
+              <div class="empty">
+                <span class="empty-icon" aria-hidden="true">⚠️</span>
+                <strong>{{ monthLabel(month) }} could not be read</strong>
+                <span>The app is up but the API did not answer. Try opening it again.</span>
+              </div>
+            </li>
+          } @else if (!entriesFor(month).length) {
+            <li class="tl tl--done"><p class="hint">No entries in {{ monthLabel(month) }}.</p></li>
+          } @else {
+            @for (entry of entriesFor(month); track entry.date; let i = $index) {
+              @if (digestInsertIndexFor(month) === i) {
+                <ng-container [ngTemplateOutlet]="digestCard" />
+              }
+              <!-- tl--done is unconditional here, not tied to
+                   isDayExpanded: a day only renders while its month is
+                   open, so its segment of the line stays coloured through
+                   that whole time regardless of whether this particular
+                   day is itself open or closed. -->
+              <li
+                class="tl tl--toggle tl--day tl--done"
+                [class.tl--mark-open]="isDayExpanded(entry.date)"
+              >
+                <button
+                  type="button"
+                  class="tl-button"
+                  [attr.aria-pressed]="isDayExpanded(entry.date)"
+                  (click)="toggleDay(entry.date)"
+                >
+                  <span class="tl-mark tl-mark--day" aria-hidden="true">{{
+                    isDayExpanded(entry.date) ? '−' : '+'
+                  }}</span>
+                  <!-- Formatted in UTC on purpose. `date` is a calendar date,
+                       and a date-only string parses as UTC midnight —
+                       rendered on a local clock it shows the day before for
+                       every reader west of UTC. -->
+                  <span class="tl-day">{{ entry.date | date: 'EEEE d MMMM' : 'UTC' }}</span>
+                </button>
+
+                @if (isDayExpanded(entry.date)) {
+                  <div class="day-cards">
+                    <article class="card">
+                      <div class="card-body">
+                        <pre class="journey-body">{{ body(entry.markdown) }}</pre>
+                      </div>
+                    </article>
+                  </div>
+                }
+              </li>
+            }
+            @if (digestInsertIndexFor(month) === entriesFor(month).length) {
+              <ng-container [ngTemplateOutlet]="digestCard" />
+            }
+          }
+        }
+      }
+    </ol>
   }
 </section>
+
+<!-- No toggle: a plain .tl (not .tl--toggle) keeps the original small round
+     dot from the homepage's own rhythm timeline, rather than the bigger +/−
+     badge — a visual cue that this row is a note sitting on the line, not
+     something to click open or closed. -->
+<ng-template #digestCard>
+  @if (digest(); as d) {
+    <li class="tl tl--done">
+      <div class="card">
+        <div class="card-head">
+          <h2>The week to {{ d.week_start }}</h2>
+        </div>
+        <div class="card-body stack">
+          <dl class="scoreboard-facts">
+            <div>
+              <dt>New analyses</dt>
+              <dd>{{ d.new_signals.length }}</dd>
+            </div>
+            <div>
+              <dt>Graded</dt>
+              <dd>{{ d.resolved.length }}</dd>
+            </div>
+            <div>
+              <dt>Right, last 30 days</dt>
+              <dd>{{ rate(d.win_rate_30d[0], d.win_rate_30d[1]) }}</dd>
+            </div>
+            <div>
+              <dt>Right, all time</dt>
+              <dd>{{ rate(d.win_rate_all[0], d.win_rate_all[1]) }}</dd>
+            </div>
+            <div>
+              <dt>Alerts</dt>
+              <dd>{{ d.alerts.length }}</dd>
+            </div>
+          </dl>
+          @if (d.book_lines?.length) {
+            <div>
+              <p class="muted-small">Holding at the end of the week</p>
+              @for (line of d.book_lines ?? []; track line) {
+                <p class="big-fact">{{ line }}</p>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    </li>
+  }
+</ng-template>

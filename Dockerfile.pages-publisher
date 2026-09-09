@@ -1,0 +1,34 @@
+# Publishes the public site to Cloudflare Pages. A separate image from the
+# main Dockerfile on purpose: that one deliberately keeps Node out of the
+# runtime image ("Node/npm and the whole Angular toolchain never reach the
+# runtime image"), and wrangler — the only supported way to push files to
+# Cloudflare Pages, there is no plain REST API for it — needs Node. Rather
+# than reverse that rule for one script, it gets its own small image.
+#
+# Talks to nothing but Cloudflare and a read-only mount of the shared data
+# volume. No Webull key, no Discord webhook, no database access — it only
+# ever reads backend/services/snapshot_export.py's already-written JSON
+# files and uploads them.
+FROM node:22-slim AS frontendbuilder
+
+WORKDIR /frontend-build
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+# The public configuration: no /settings route, and every /api/... call
+# redirected to a static file by static-data.interceptor.ts. See
+# frontend/angular.json's "public" configuration and app.routes.public.ts.
+RUN npm run build -- --configuration=production,public --output-path=dist/frontend-public
+
+FROM node:22-slim
+
+# Pinned, the same reason the docs build pins zensical: an unrelated wrangler
+# release should not turn into a surprise change in how the site deploys.
+RUN npm install -g wrangler@4.130.0
+
+WORKDIR /publisher
+COPY --from=frontendbuilder /frontend-build/dist/frontend-public/browser ./site/
+COPY scripts/publish_pages.sh ./publish.sh
+RUN chmod +x ./publish.sh
+
+ENTRYPOINT ["./publish.sh"]

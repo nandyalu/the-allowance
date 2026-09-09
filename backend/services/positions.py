@@ -78,7 +78,7 @@ def get_current_price(ticker: str) -> float | None:
     falls back to yfinance's delayed close. Every successful fetch writes through
     to the ticker price cache (backend/database/db.py's TickerPrice table), which
     is what the dashboard's list/detail routes read from instead of fetching live."""
-    from backend.services import listings  # lazy: keeps positions import-light
+    from backend.services import listings, publish  # lazy: keeps positions import-light
     from backend.services.quotes import get_realtime_price
 
     # A ticker that stopped trading has no current price to fetch. Asking
@@ -87,6 +87,16 @@ def get_current_price(ticker: str) -> float | None:
     # it gets cached and shown as a real quote.
     if listings.is_inactive(ticker):
         return None
+
+    # The published copy has no Webull key, so its own fetch could only ever
+    # reach yfinance's stale daily close — worse than the live price the
+    # private copy already keeps in this cache. Read the cache and stop
+    # there: writing a worse price through from here would leave it for the
+    # private copy's own dashboard to show next, which defeats the point of
+    # calling this copy read-only.
+    if publish.is_public():
+        cached = db.get_cached_price(ticker)
+        return cached.price if cached is not None else None
 
     price = get_realtime_price(ticker)
     if price is not None:

@@ -29,6 +29,7 @@ from backend.services import (
     market_clock,
     quotes,
     regime,
+    snapshot_export,
     watchdog,
 )
 from backend.services.digest import build_weekly_digest_embed
@@ -645,6 +646,21 @@ def alert_watchdog() -> None:
     run_on_main(_alert_watchdog_job)
 
 
+async def _export_public_snapshot_job() -> None:
+    """Regenerate the static files behind the public site. Runs only here —
+    register_jobs() is never called under PUBLIC_MODE (see app.py's
+    lifespan), so this job exists on the private container alone, the one
+    with live data to export."""
+    try:
+        await asyncio.to_thread(snapshot_export.export_all)
+    except Exception:
+        log.exception("Public snapshot export failed")
+
+
+def export_public_snapshot() -> None:
+    run_on_main(_export_public_snapshot_job)
+
+
 async def _earnings_check_job() -> None:
     """Pre-market (13:00 UTC = 8/9am ET): fresh analysis for tracked tickers
     reporting within the next couple of days."""
@@ -728,6 +744,10 @@ def register_jobs() -> None:
     skipping it would leave an agent that never wakes and reports nothing
     wrong."""
     scheduler.add_task(task_name="alert_watchdog", func=alert_watchdog, interval=900)
+    # Same 15-minute cadence as alert_watchdog. The public site is a snapshot,
+    # not a live view, and a 1-2 week holding horizon has no need for
+    # anything tighter than this.
+    scheduler.add_task(task_name="export_public_snapshot", func=export_public_snapshot, interval=900)
     scheduler.add_task(task_name="daily_signals", func=daily_signals, interval=86400, run_at=_next_utc_time(21, 30))
     scheduler.add_task(task_name="earnings_check", func=earnings_check, interval=86400, run_at=_next_utc_time(13, 0))
     scheduler.add_task(task_name="morning_regime", func=morning_regime, interval=86400, run_at=_next_utc_time(12, 45))

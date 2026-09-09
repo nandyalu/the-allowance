@@ -94,13 +94,21 @@ async def lifespan(app: FastAPI):
 # routes at construction, before any mount, so leaving it at the default made
 # Swagger UI shadow the real docs entirely — the /docs link in the dashboard
 # nav reached the API reference instead.
-app = FastAPI(
-    title="Trading Helper",
-    lifespan=lifespan,
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
+#
+# The published copy turns all three off. The write guard below already
+# refuses anything the reference would let a visitor try, so this is not a
+# safety fix — it is that a page for reading results has no reason to hand out
+# a map of every endpoint to whoever asks.
+_api_reference_urls = (
+    {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    if publish.is_public()
+    else {
+        "docs_url": "/api/docs",
+        "redoc_url": "/api/redoc",
+        "openapi_url": "/api/openapi.json",
+    }
 )
+app = FastAPI(title="Trading Helper", lifespan=lifespan, **_api_reference_urls)
 
 # --- the public read-only guard ------------------------------------------------
 #
