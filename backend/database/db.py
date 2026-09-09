@@ -280,6 +280,30 @@ def set_ticker_status(
     _session.commit()
 
 
+@read_session
+def get_webull_category(ticker: str, *, _session: Session = None) -> str | None:
+    """Which Webull category this ticker last answered on, or None if it has
+    never answered. See TickerStatus.webull_category."""
+    row = _session.get(TickerStatus, ticker)
+    return row.webull_category if row else None
+
+
+@write_session
+def set_webull_category(ticker: str, category: str, *, _session: Session = None) -> None:
+    """Remember the category a ticker answered on.
+
+    Deliberately not folded into ``set_ticker_status``, which stamps
+    ``checked_at`` on every call because the point of a *check* is that it
+    happened. Learning a category is not a freshness check, and stamping it
+    here would keep pushing back the once-a-day recheck that lets a delisted
+    ticker be noticed.
+    """
+    row = _session.get(TickerStatus, ticker) or TickerStatus(ticker=ticker)
+    row.webull_category = category
+    _session.add(row)
+    _session.commit()
+
+
 # --- Daily bar cache (every yfinance history read goes through this) ---------
 
 

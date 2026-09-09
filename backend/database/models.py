@@ -332,6 +332,15 @@ class TickerStatus(SQLModel, table=True):
     # Set by a person, and never overwritten by detection. Lets a ticker be
     # force-ignored (or force-kept) when the heuristic gets it wrong.
     manual: bool = False
+    # Which Webull category this ticker answers on — "US_STOCK" or "US_ETF".
+    # Webull's market-data calls need it and the app cannot know it up front,
+    # so it is learned by trying one and then the other. That belongs here
+    # rather than in memory: it is a stable fact about the instrument, and
+    # kept only in a process-local dict it was relearned on every restart —
+    # at a cost of one extra request per ticker each time, on a host that
+    # restarted 22 times on 2026-09-09 while being rate-limited for exactly
+    # that kind of surplus request. NULL until the ticker has answered once.
+    webull_category: str | None = None
 
 
 class DailyBar(SQLModel, table=True):

@@ -32,8 +32,15 @@ from tradingagents.dataflows.stockstats_utils import yf_retry
 from backend.database import db
 from backend.services import intraday, listings
 from backend.services.positions import OhlcBar, drop_incomplete_bars
+from backend.services.watchdog import _MARKET_OPEN, US_MARKET_TZ
 
 log = logging.getLogger("trading-experiment.bars")
+
+# How late the first stored minute of a day may be and still count as covering
+# the session. A bar stamped a few seconds after the bell is the same bar; one
+# stamped an hour late means the cache missed the open, and a day summed from
+# it would report the wrong open, high and low.
+_MINUTE_COVERAGE_SLACK = datetime.timedelta(minutes=2)
 
 # How long to wait before asking yfinance again for a ticker whose cache
 # already looks current. Only matters on days when no new session closes —
@@ -243,9 +250,54 @@ def get_bars(
     return bars
 
 
+def _todays_bar_from_minutes(ticker: str, today: datetime.date) -> OhlcBar | None:
+    """Today's session summed from the 1-minute bars already on disk, or None
+    when the cache does not cover it from the open.
+
+    **The watchdog captures those minutes for every tracked ticker on the same
+    tick that asks for this bar**, so the day is usually already stored when
+    this is called, and a bar built from real minutes is better than a
+    vendor's in-progress daily bar rather than merely cheaper. On 2026-09-09,
+    seven of ten tracked tickers held the whole session this way — 186 bars
+    each — while the app was separately asking Webull for the same day and
+    being refused.
+
+    **Coverage has to reach the open, or the bar lies about it.** A cache that
+    starts at 11am would report 11am's price as the day's open and its range
+    as the day's high and low. When that happens this returns None and the
+    caller fetches, which is the honest answer rather than a cheap wrong one.
+    """
+    session_open = datetime.datetime.combine(today, _MARKET_OPEN, tzinfo=US_MARKET_TZ)
+    minutes = db.get_intraday_bars(ticker, session_open.astimezone(datetime.timezone.utc))
+    minutes = [bar for bar in minutes if bar.timestamp.date() == today]
+    if not minutes:
+        return None
+    # The first stored minute must be at or before the first minute of the
+    # session, plus a little slack for a bar stamped a few seconds late.
+    first = minutes[0].timestamp
+    if first.tzinfo is None:
+        first = first.replace(tzinfo=datetime.timezone.utc)
+    if first - session_open > _MINUTE_COVERAGE_SLACK:
+        return None
+    return OhlcBar(
+        date=today.isoformat(),
+        open=minutes[0].open,
+        high=max(bar.high for bar in minutes),
+        low=min(bar.low for bar in minutes),
+        close=minutes[-1].close,
+        volume=sum(bar.volume for bar in minutes),
+    )
+
+
 def _todays_bar(ticker: str, today: datetime.date) -> OhlcBar | None:
-    """The session in progress, fetched live. None outside a session, or when
-    the day's bar carries no prices yet (pre-market).
+    """The session in progress. None outside a session, or when the day's bar
+    carries no prices yet (pre-market).
+
+    Built from the 1-minute cache when that covers the session, and fetched
+    live otherwise — see ``_todays_bar_from_minutes``. Deriving it came from
+    2026-09-09, when asking Webull for this bar once per ticker per watchdog
+    tick was most of what pushed the whole app over the market-data rate
+    limit, while the answer sat in a table the same tick had just written.
 
     Skips the request entirely at the weekend. yfinance answers a Saturday
     range with an empty frame and a "possibly delisted" warning, so asking is
@@ -255,6 +307,9 @@ def _todays_bar(ticker: str, today: datetime.date) -> OhlcBar | None:
         return None
     if not listings.should_fetch(ticker):
         return None
+    derived = _todays_bar_from_minutes(ticker, today)
+    if derived is not None:
+        return derived
     history = _fetch_history(ticker, today, today)
     if not history:
         return None

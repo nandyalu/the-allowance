@@ -11,7 +11,7 @@ import datetime
 import pytest
 
 from backend.database.models import TickerStatus
-from backend.services import bars, listings
+from backend.services import bars, listings, quotes
 
 
 @pytest.fixture(autouse=True)
@@ -44,9 +44,27 @@ def isolated_ticker_status(monkeypatch):
     def inactive_rows():
         return [row for row in store.values() if row.inactive]
 
+    # The Webull category lives on the same row and is written from the same
+    # kind of depth — inside a market-data call — so it needs the same
+    # isolation. Without these two the quote and bar paths reach the real
+    # database looking for a column the developer's copy may not have yet.
+    def get_category(ticker):
+        row = store.get(ticker)
+        return row.webull_category if row else None
+
+    def set_category(ticker, category):
+        store.setdefault(ticker, TickerStatus(ticker=ticker)).webull_category = category
+
     monkeypatch.setattr(listings.db, "get_ticker_status", get_status)
     monkeypatch.setattr(listings.db, "set_ticker_status", set_status)
     monkeypatch.setattr(listings.db, "get_inactive_tickers", inactive_rows)
+    monkeypatch.setattr(listings.db, "get_webull_category", get_category)
+    monkeypatch.setattr(listings.db, "set_webull_category", set_category)
+    # quotes.category_for imports db lazily, so it resolves the module rather
+    # than a name bound at import time — patching the module attribute above
+    # is enough to cover it, but the memo in front of it has to start empty or
+    # one test's learned category would leak into the next.
+    monkeypatch.setattr(quotes, "_category_cache", {})
     return store
 
 
@@ -80,6 +98,21 @@ def fake_bar_cache(monkeypatch):
     monkeypatch.setattr(bars, "_last_fetch", {})
     monkeypatch.setattr(bars, "_earliest_attempt", {})
     return store
+
+
+@pytest.fixture(autouse=True)
+def never_pace_the_market_data_endpoint(monkeypatch):
+    """Skip the real 3-second gap between Webull market-data requests.
+
+    The pace exists because Webull refused 524 of one day's calls (see
+    JOURNEY.md, 2026-09-09); it is not something any test needs to sit
+    through, and leaving it in added 54 seconds to a 5-second suite. The
+    pacing arithmetic itself is covered directly in test_market_data_pacing.py
+    with the real function and its own numbers.
+    """
+    from backend.services import quotes
+
+    monkeypatch.setattr(quotes, "_claim_a_slot", lambda: None)
 
 
 @pytest.fixture(autouse=True)

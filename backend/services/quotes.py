@@ -10,6 +10,8 @@ the working category cached per ticker.
 """
 import logging
 import os
+import threading
+import time
 
 log = logging.getLogger("trading-experiment.quotes")
 
@@ -19,10 +21,159 @@ _api_client = None
 _api_client_done = False
 _market_data = None
 _init_done = False
+# A process-local memo in front of TickerStatus.webull_category, so a warm
+# process costs no query per request and a cold one costs no extra vendor
+# request. Before 2026-09-09 this dict was the only copy, and every restart
+# threw it away — see category_for below.
 _category_cache: dict[str, str] = {}
 
 _PRICE_KEYS = ("price", "last_price", "last", "close", "pre_close")
 _LIST_KEYS = ("snapshots", "data", "result", "list")
+
+# --- Pacing the market-data endpoint ---------------------------------------
+#
+# Webull publishes no rate limit for market data — neither the API index nor
+# the Market Data API Overview carries a number — so these are derived from
+# what actually failed here on 2026-09-09, when the watchdog fired about
+# twenty requests in a six-second burst every fifteen minutes and Webull
+# refused 524 of the day's calls. See JOURNEY.md for that day.
+#
+# One pace shared by every market-data caller (quotes here, history bars in
+# backend/services/intraday.py), because they share one limit. Order history
+# has had its own pause since 2026-08-07 for the same reason; this endpoint
+# had nothing.
+_PACE_FLOOR_SECONDS = 3.0
+_PACE_CEILING_SECONDS = 10.0
+# Widen fast, narrow slowly. A burst that trips the limit should back off at
+# once; recovering in small steps keeps the next burst from tripping it again
+# the moment one call succeeds.
+_PACE_WIDEN_SECONDS = 3.5
+_PACE_NARROW_SECONDS = 0.5
+_MARKET_DATA_ATTEMPTS = 3
+
+_pace_lock = threading.Lock()
+_pace_seconds = _PACE_FLOOR_SECONDS
+_last_request_at = 0.0
+
+
+def category_for(ticker: str) -> str | None:
+    """The Webull category this ticker last answered on, or None if it has
+    never answered — in which case the caller probes US_STOCK then US_ETF.
+
+    Reads the process memo first and the database behind it, so learning
+    survives a restart. The import is local because this module is imported
+    by paths that must work with no database configured at all.
+    """
+    if ticker in _category_cache:
+        return _category_cache[ticker]
+    from backend.database import db
+
+    # Same reasoning as the write below: an unreadable row costs the probe
+    # request it was meant to save, never the quote itself.
+    try:
+        stored = db.get_webull_category(ticker)
+    except Exception:
+        log.warning("Could not read the Webull category for %s", ticker, exc_info=True)
+        return None
+    if stored:
+        _category_cache[ticker] = stored
+    return stored
+
+
+def remember_category(ticker: str, category: str) -> None:
+    """Record the category a ticker answered on, in memory and on disk.
+
+    Writes only on a change, so the ordinary case — every request for an
+    already-known ticker — costs nothing.
+    """
+    if _category_cache.get(ticker) == category:
+        return
+    _category_cache[ticker] = category
+    from backend.database import db
+
+    # The memo is updated first and the write can fail without taking the
+    # quote with it. This line used to be a dict assignment that could not
+    # fail; now it reaches a database, and a caller asking for a price should
+    # not lose it because the app could not write down a detail about how it
+    # was fetched. Failing here costs the persistence and nothing else — the
+    # process still remembers, exactly as it did before 2026-09-09.
+    try:
+        db.set_webull_category(ticker, category)
+    except Exception:
+        log.warning("Could not store the Webull category for %s", ticker, exc_info=True)
+
+
+def rate_limited(exc: Exception) -> bool:
+    """Whether Webull refused this request for being too busy, rather than for
+    any reason the caller could fix by asking differently."""
+    text = str(exc).lower()
+    return "429" in text or "too_many_requests" in text or "too many requests" in text
+
+
+def _claim_a_slot() -> None:
+    """Wait until the shared gap since the last market-data request has passed,
+    then take the next slot.
+
+    Blocking is safe: every route in this app is a plain ``def`` and runs in
+    the threadpool, the decision pass is wrapped in ``asyncio.to_thread``, and
+    the dashboard reads the price cache rather than fetching live. Nothing that
+    sleeps here sits on the event loop.
+    """
+    global _last_request_at
+    while True:
+        with _pace_lock:
+            now = time.monotonic()
+            ready_at = _last_request_at + _pace_seconds
+            if now >= ready_at:
+                _last_request_at = now
+                return
+            wait = ready_at - now
+        time.sleep(wait)
+
+
+def _widen_pace() -> None:
+    global _pace_seconds
+    with _pace_lock:
+        _pace_seconds = min(_PACE_CEILING_SECONDS, _pace_seconds + _PACE_WIDEN_SECONDS)
+
+
+def _narrow_pace() -> None:
+    global _pace_seconds
+    with _pace_lock:
+        _pace_seconds = max(_PACE_FLOOR_SECONDS, _pace_seconds - _PACE_NARROW_SECONDS)
+
+
+def market_data_request(call, what: str):
+    """Run one Webull market-data request under the shared pace, retrying while
+    Webull says it is too busy.
+
+    Raises the vendor's own exception once ``_MARKET_DATA_ATTEMPTS`` are spent,
+    which is what sends the caller to yfinance. Anything that is not a rate
+    limit is raised immediately — a wrong argument does not improve on a
+    second attempt, and retrying one only spends the quota this exists to
+    protect.
+    """
+    for attempt in range(1, _MARKET_DATA_ATTEMPTS + 1):
+        _claim_a_slot()
+        try:
+            response = call()
+        except Exception as exc:
+            if not rate_limited(exc):
+                raise
+            _widen_pace()
+            if attempt == _MARKET_DATA_ATTEMPTS:
+                log.warning(
+                    "Webull is rate limiting %s — gave up after %d attempts, now pacing at %.1fs",
+                    what, attempt, _pace_seconds,
+                )
+                raise
+            log.info(
+                "Webull rate limited %s (attempt %d of %d) — pacing at %.1fs",
+                what, attempt, _MARKET_DATA_ATTEMPTS, _pace_seconds,
+            )
+            continue
+        _narrow_pace()
+        return response
 
 
 def is_sandbox() -> bool:
@@ -124,13 +275,13 @@ def get_realtime_price(ticker: str) -> float | None:
         return None
     from webull.data.common.category import Category
 
-    categories = [_category_cache.get(ticker)] if ticker in _category_cache else [
-        Category.US_STOCK.name,
-        Category.US_ETF.name,
-    ]
+    known = category_for(ticker)
+    categories = [known] if known else [Category.US_STOCK.name, Category.US_ETF.name]
     for category in categories:
         try:
-            response = market_data.get_snapshot(ticker, category)
+            response = market_data_request(
+                lambda: market_data.get_snapshot(ticker, category), f"a quote for {ticker}"
+            )
             price = extract_price(response.json())
         except Exception as exc:
             message = str(exc)
@@ -150,8 +301,17 @@ def get_realtime_price(ticker: str) -> float | None:
                     log.error("Webull rejected the credentials — disabling Webull quotes until restart")
                 return None
             log.warning("Webull snapshot failed for %s/%s: %s", ticker, category, exc)
+            # A rate limit stops the whole attempt; any other error still tries
+            # the next category. "Too busy" says nothing about whether this
+            # ticker is a stock or an ETF, and before 2026-09-09 treating it as
+            # if it did meant a rate-limited ticker cost two requests instead
+            # of one — the failure doubling the traffic that caused it. Other
+            # errors keep falling through, because a wrong category can surface
+            # as one.
+            if rate_limited(exc):
+                return None
             continue
         if price is not None:
-            _category_cache[ticker] = category
+            remember_category(ticker, category)
             return price
     return None

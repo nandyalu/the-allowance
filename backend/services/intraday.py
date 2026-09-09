@@ -108,19 +108,29 @@ def fetch_bars(
     from webull.data.common.timespan import Timespan
 
     timespan = timespan or Timespan.M1
-    categories = (
-        [quotes._category_cache[ticker]] if ticker in quotes._category_cache
-        else [Category.US_STOCK.name, Category.US_ETF.name]
-    )
+    known = quotes.category_for(ticker)
+    categories = [known] if known else [Category.US_STOCK.name, Category.US_ETF.name]
     kwargs = {"count": str(count)}
     if end_time is not None:
         kwargs["end_time"] = int(_as_utc(end_time).timestamp() * 1000)
     for category in categories:
         try:
-            response = market_data.get_history_bar(ticker, category, timespan, **kwargs)
+            response = quotes.market_data_request(
+                lambda: market_data.get_history_bar(ticker, category, timespan, **kwargs),
+                f"bars for {ticker}",
+            )
             body = response.json() if hasattr(response, "json") else response
         except Exception as exc:
             log.warning("Webull history bar failed for %s/%s: %s", ticker, category, exc)
+            # A rate limit stops the whole attempt; any other error still tries
+            # the next category. See the same split in quotes.get_realtime_price.
+            # "Too busy" says nothing about whether this ticker is a stock or an
+            # ETF, and before 2026-09-09 treating it as if it did meant a
+            # rate-limited ticker cost two requests instead of one — the failure
+            # doubling the traffic that caused it. Other errors are left falling
+            # through, because a wrong category can surface as one.
+            if quotes.rate_limited(exc):
+                return None
             continue
         raw = (
             body if isinstance(body, list)
@@ -128,7 +138,7 @@ def fetch_bars(
         )
         if not raw:
             continue
-        quotes._category_cache[ticker] = category
+        quotes.remember_category(ticker, category)
         return sorted(_parse_bars(raw), key=lambda b: b["timestamp"])
     return None
 
