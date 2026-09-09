@@ -262,6 +262,27 @@ class AgentRun(SQLModel, table=True):
     equity: float | None = None
     cash: float | None = None
     research_spent: float | None = None
+    # The model's own reasoning behind the answer — why it decided, not just
+    # what it decided. Ollama returns it beside the content on /v1 and it was
+    # discarded until 2026-09-09: generated, paid for, and thrown away. It is
+    # most of what the model produces, and on one replayed pass ran to 4,034
+    # characters against a 606-character answer. NULL on a pass that never
+    # asked, on every pass before that date, and on any provider whose client
+    # does not return it — see agent._invoke.
+    thinking: str | None = None
+    # What the model calls cost, summed across a retry: the provider's own
+    # counts and the wall clock of the calls themselves, not of the whole
+    # pass. Signal has carried the same three for an analysis since the cost
+    # telemetry landed; a decision pass recorded its prompt and answer in full
+    # and not one token of what they cost until 2026-09-09. The agent wakes
+    # several times a day and every prompt change moves this number, so it is
+    # a recurring cost the record could not see.
+    #
+    # NULL rather than 0 when nothing reported them — a zero would read as a
+    # free call, which is the same rule Signal's columns follow.
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    seconds: float | None = None
 
 
 class ResearchCharge(SQLModel, table=True):

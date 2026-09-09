@@ -397,6 +397,16 @@ export interface AgentEvent {
   research_spent: number | null;
   prompt: string | null;
   response: string | null;
+  /** The model's own reasoning on the way to `response` — most of what the
+   * pass generated, and most of what it cost. Null on every pass before
+   * 2026-09-09, when it was generated and discarded. */
+  thinking: string | null;
+  /** What the pass cost the model — the provider's own counts and the wall
+   * clock of the calls. Null on a pass that never asked, and on every pass
+   * before 2026-09-09, when nothing counted them. */
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  seconds: number | null;
   orders: AgentEventOrder[];
   /** What Python declined before anything was sent. */
   refused: AgentOrder[];

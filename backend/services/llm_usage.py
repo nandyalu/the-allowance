@@ -34,6 +34,30 @@ class Usage:
         return self.prompt_tokens + self.completion_tokens
 
 
+def tokens_from_message(message) -> tuple[int, int]:
+    """(prompt, completion) for a single message returned by ``.invoke()``.
+
+    ``_tokens_from`` below reads the ``LLMResult`` that a callback handler
+    sees, which is a different shape: ``.generate()`` wraps messages in
+    ``generations``, ``.invoke()`` hands back the message itself. The agent's
+    decision pass uses ``.invoke()`` directly on a client no tracker is
+    attached to, so it needs this one.
+
+    Reads the provider's own accounting and never estimates, for the reason in
+    this module's docstring. A message carrying neither shape counts as zero
+    rather than raising: losing the telemetry for a pass must never lose the
+    pass.
+    """
+    usage = getattr(message, "usage_metadata", None) or {}
+    prompt = usage.get("input_tokens", 0) or 0
+    completion = usage.get("output_tokens", 0) or 0
+    if prompt or completion:
+        return prompt, completion
+
+    raw = (getattr(message, "response_metadata", None) or {}).get("token_usage") or {}
+    return raw.get("prompt_tokens", 0) or 0, raw.get("completion_tokens", 0) or 0
+
+
 def _tokens_from(response) -> tuple[int, int]:
     """(prompt, completion) for one LLM response.
 

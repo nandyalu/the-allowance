@@ -778,6 +778,10 @@ def record_agent_run(
     response: str | None = None,
     orders: str | None = None,
     next_wakeup: datetime.datetime | None = None,
+    thinking: str | None = None,
+    prompt_tokens: int | None = None,
+    completion_tokens: int | None = None,
+    seconds: float | None = None,
     *,
     _session: Session = None,
 ) -> int:
@@ -799,6 +803,10 @@ def record_agent_run(
         prompt=prompt,
         response=response,
         orders=orders,
+        thinking=thinking,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        seconds=seconds,
     )
     _session.add(row)
     _session.commit()

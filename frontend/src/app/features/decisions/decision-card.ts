@@ -26,7 +26,7 @@ export class DecisionCard {
   readonly event = input.required<AgentEvent>();
 
   /** Which panels are open on this one card. */
-  private readonly open = signal<Set<'prompt' | 'response'>>(new Set());
+  private readonly open = signal<Set<'prompt' | 'response' | 'thinking'>>(new Set());
 
   when(instant: string): string {
     return readerDateTime(instant);
@@ -67,11 +67,11 @@ export class DecisionCard {
     return event.orders.filter((o) => o.side !== 'note');
   }
 
-  isOpen(which: 'prompt' | 'response'): boolean {
+  isOpen(which: 'prompt' | 'response' | 'thinking'): boolean {
     return this.open().has(which);
   }
 
-  toggle(which: 'prompt' | 'response'): void {
+  toggle(which: 'prompt' | 'response' | 'thinking'): void {
     const next = new Set(this.open());
     next.has(which) ? next.delete(which) : next.add(which);
     this.open.set(next);

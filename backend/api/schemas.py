@@ -467,6 +467,15 @@ class AgentEventOut(Schema):
     research_spent: float | None = None
     prompt: str | None = None
     response: str | None = None
+    # The model's own reasoning behind the answer. NULL before 2026-09-09,
+    # when it was generated and discarded.
+    thinking: str | None = None
+    # What the pass cost the model: the provider's own counts and the wall
+    # clock of the calls. NULL on a pass that never asked, and on one from
+    # before 2026-09-09, when nothing counted them.
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    seconds: float | None = None
     orders: list[AgentEventOrderOut] = []
     # What Python declined before anything was sent.
     refused: list[AgentOrderOut] = []

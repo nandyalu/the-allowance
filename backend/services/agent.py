@@ -26,11 +26,13 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
+from typing import NamedTuple
 from pathlib import Path
 
 from backend.database import db
 from backend.services import (
-    agent_book, analysis, candidates, market_clock, quotes, research, sandbox_broker, watchdog,
+    agent_book, analysis, candidates, llm_usage, market_clock, quotes, research,
+    sandbox_broker, watchdog,
 )
 from backend.services.positions import get_current_price
 from backend.services.sizing import get_atr, suggest_position
@@ -1247,14 +1249,101 @@ SYSTEM_PROMPT = (
 )
 
 
-def _ask(prompt: str) -> str:
-    response = analysis._quick_think_llm().invoke(
-        [("system", SYSTEM_PROMPT), ("human", prompt)]
-    )
-    content = response.content
+class _Answer(str):
+    """The model's reply, carrying what the call cost.
+
+    A ``str`` subclass on purpose. Every caller and a dozen test fakes treat
+    the answer as a plain string — several patch ``_ask`` with
+    ``lambda _p: "..."`` — so widening the return type to a tuple or a
+    dataclass would break all of them for the sake of three numbers only one
+    caller reads. As a str it is still exactly the string it was, and
+    ``_decide`` picks the counts off it with ``getattr`` so a fake that
+    returns a bare string reports zero rather than raising.
+    """
+
+    def __new__(cls, text, prompt_tokens=0, completion_tokens=0, seconds=0.0, thinking=None):
+        answer = super().__new__(cls, text)
+        answer.prompt_tokens = prompt_tokens
+        answer.completion_tokens = completion_tokens
+        answer.seconds = seconds
+        answer.thinking = thinking
+        return answer
+
+
+def _invoke(llm, prompt: str) -> tuple[str, str | None, int, int]:
+    """One call to the model: (content, thinking, prompt tokens, completion tokens).
+
+    **Goes through the OpenAI-compatible client LangChain already built**,
+    rather than ``llm.invoke``, for one reason: the model's reasoning. Ollama
+    returns it on ``/v1/chat/completions`` as a ``reasoning`` field beside the
+    content, and ``ChatOpenAI`` drops it on purpose — its own docstring says it
+    targets the official OpenAI specification and does not extract
+    "non-standard response fields added by third-party providers". There is no
+    flag to keep it. Using ``llm.client`` inherits the base URL, the key and
+    the timeouts that were configured once, so nothing about the connection is
+    duplicated here.
+
+    **Falls back to ``llm.invoke`` for any client that does not work this
+    way** — Anthropic and Google go through their own LangChain packages, and
+    switching provider is a config change this app supports. Losing the
+    thinking is the cost of that; losing the pass would not be acceptable.
+    """
+    client = getattr(llm, "client", None)
+    if client is not None and hasattr(client, "create"):
+        try:
+            raw = client.create(
+                model=llm.model_name,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+            )
+            message = raw.choices[0].message
+            thinking = getattr(message, "reasoning", None) or (
+                message.model_extra or {}
+            ).get("reasoning")
+            usage = raw.usage
+            return (
+                message.content or "",
+                thinking or None,
+                getattr(usage, "prompt_tokens", 0) or 0,
+                getattr(usage, "completion_tokens", 0) or 0,
+            )
+        except Exception:
+            # Never fatal. A pass must not be lost because the richer path
+            # failed on a client shape this did not anticipate.
+            log.warning("Falling back to the LangChain client for this pass", exc_info=True)
+
+    message = llm.invoke([("system", SYSTEM_PROMPT), ("human", prompt)])
+    content = message.content
     if isinstance(content, list):
         content = " ".join(str(part) for part in content)
-    return str(content)
+    prompt_tokens, completion_tokens = llm_usage.tokens_from_message(message)
+    return str(content), None, prompt_tokens, completion_tokens
+
+
+def _ask(prompt: str) -> _Answer:
+    """One call to the model: the answer, what it cost, and how it got there.
+
+    The counts come from the provider's ``usage`` block, never a tokenizer
+    estimate — see backend/services/llm_usage.py. This client is the one no
+    ``UsageTracker`` attaches to (a tracker binds to the graph's two LLM
+    objects, and the decision pass does not go through the graph), which is
+    why the reading happens here rather than there. Until 2026-09-09 nothing
+    counted it at all: an ``agentrun`` row recorded the prompt and the answer
+    in full and not one token of what they cost.
+
+    ``thinking`` is the model's own reasoning, which is most of what it
+    generates and was thrown away until the same day — see ``_invoke``. On one
+    replayed pass the stored answer was 606 characters against 4,034 of
+    reasoning.
+    """
+    started = time.monotonic()
+    content, thinking, prompt_tokens, completion_tokens = _invoke(
+        analysis._quick_think_llm(), prompt
+    )
+    seconds = time.monotonic() - started
+    return _Answer(content, prompt_tokens, completion_tokens, seconds, thinking)
 
 
 def wakeup_due(now: datetime.datetime | None = None) -> datetime.datetime | None:
@@ -1450,10 +1539,16 @@ def _decide(book, signals, prices, closed=None, regime_line=None, horizon_days=N
         changes=recent_changes,
     )
     answer = _ask(shown)
+    # Accumulated rather than taken from the last call: a retry is a second
+    # real call to the model and its tokens are spent whether or not its
+    # answer is the one used. getattr covers the fakes that return a plain
+    # string — see _Answer.
+    spend = _Spend.of(answer)
     reasoning, proposed = parse_decision(answer)
     accepted, rejected = screen(proposed, book, prices, by_ticker, menu_tickers)
     if not rejected:
-        return Decision(reasoning, accepted, rejected, shown, answer)
+        return Decision(reasoning, accepted, rejected, shown, answer,
+                        getattr(answer, "thinking", None), *spend)
 
     log.info("Re-asking after %d refused order(s): %s", len(rejected), [r.why for r in rejected])
     shown = build_prompt(book, signals, prices, rejected=rejected, closed=closed,
@@ -1464,14 +1559,46 @@ def _decide(book, signals, prices, closed=None, regime_line=None, horizon_days=N
                          wakeups=recent_wakeups, analysis_minutes=analysis_minutes,
                          running_analyses=running_analyses, changes=recent_changes)
     retry_answer = _ask(shown)
+    spend = spend + _Spend.of(retry_answer)
     retry_reasoning, retry_proposed = parse_decision(retry_answer)
     if not retry_proposed:
         # A retry that proposes nothing is a decision to stand pat; keep the
         # first answer's accepted orders rather than discarding them.
-        return Decision(reasoning, accepted, rejected, shown, retry_answer)
+        return Decision(reasoning, accepted, rejected, shown, retry_answer,
+                        getattr(retry_answer, "thinking", None), *spend)
     retry_accepted, retry_rejected = screen(retry_proposed, book, prices, by_ticker, menu_tickers)
     return Decision(retry_reasoning or reasoning, retry_accepted, retry_rejected,
-                    shown, retry_answer)
+                    shown, retry_answer, getattr(retry_answer, "thinking", None), *spend)
+
+
+class _Spend(NamedTuple):
+    """What the model calls in one pass cost, summed across the retry.
+
+    A tuple so it unpacks straight into Decision's trailing fields, and named
+    so the three numbers cannot be swapped by accident on the way there.
+    """
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    seconds: float = 0.0
+
+    @classmethod
+    def of(cls, answer) -> "_Spend":
+        """Read the counts off one answer, tolerating a plain string — a dozen
+        tests patch ``_ask`` with one, and telemetry must never be the reason a
+        pass fails."""
+        return cls(
+            getattr(answer, "prompt_tokens", 0),
+            getattr(answer, "completion_tokens", 0),
+            getattr(answer, "seconds", 0.0),
+        )
+
+    def __add__(self, other: "_Spend") -> "_Spend":
+        return _Spend(
+            self.prompt_tokens + other.prompt_tokens,
+            self.completion_tokens + other.completion_tokens,
+            self.seconds + other.seconds,
+        )
 
 
 @dataclass
@@ -1482,6 +1609,10 @@ class Decision:
     one-line reasoning describe a decision while these two *are* it. Behaviour
     here is mostly prompt, so a month of runs across three prompt revisions
     cannot be told apart afterwards without them.
+
+    The three token/time fields are what those two cost, added up across the
+    retry when there was one. Zero means nothing reported them rather than a
+    free call — see ``_Answer``.
     """
 
     reasoning: str
@@ -1489,6 +1620,13 @@ class Decision:
     rejected: list
     prompt: str = ""
     response: str = ""
+    # The model's own reasoning behind that response. Replaced by a retry for
+    # the same reason `response` is: the retry is the answer the accepted
+    # orders were actually screened from.
+    thinking: str | None = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    seconds: float = 0.0
 
     def __iter__(self):
         """Unpack like the tuple this replaced, so existing callers and tests
@@ -1542,6 +1680,17 @@ class AgentRun:
     # a skipped run, or one the market was shut for.
     prompt: str = ""
     response: str = ""
+    # The model's own reasoning. Most of what it generates and all of why —
+    # see _invoke. None on a pass that never asked, and on any provider whose
+    # client does not return it.
+    thinking: str | None = None
+    # What those words cost: the provider's own counts and the wall clock of
+    # the model calls, summed across a retry. Zero on a pass that never asked,
+    # and on one whose endpoint reported no usage — stored as NULL rather than
+    # 0 for exactly that reason, the same rule Signal already follows.
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    seconds: float = 0.0
 
     @property
     def acted(self) -> bool:
@@ -2201,7 +2350,11 @@ def run_once() -> AgentRun:
     # Accepting both is the point of keeping __iter__.
     run = AgentRun(reasoning=reasoning, rejected=rejected, book=book,
                    prompt=getattr(decision, "prompt", ""),
-                   response=getattr(decision, "response", ""))
+                   response=getattr(decision, "response", ""),
+                   thinking=getattr(decision, "thinking", None),
+                   prompt_tokens=getattr(decision, "prompt_tokens", 0),
+                   completion_tokens=getattr(decision, "completion_tokens", 0),
+                   seconds=getattr(decision, "seconds", 0.0))
     # What it asked for and what it got, kept apart. `next_wakeup` is the
     # clamped, usable instant the scheduler acts on; `wakeup_asked` is the raw
     # request. When they differ the agent aimed somewhere the market is shut,
@@ -2444,6 +2597,12 @@ def _record_run(run: "AgentRun") -> None:
             refusals=_refusals_json(run),
             prompt=run.prompt or None,
             response=run.response or None,
+            thinking=run.thinking or None,
+            # NULL, not 0, when nothing reported them — a zero would read as a
+            # free call. Same rule as Signal's own usage columns.
+            prompt_tokens=run.prompt_tokens or None,
+            completion_tokens=run.completion_tokens or None,
+            seconds=run.seconds or None,
             orders=_orders_json(run),
             failures=_failures_json(run),
             notes=json.dumps(run.notes) if run.notes else None,
