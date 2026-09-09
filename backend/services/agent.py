@@ -469,7 +469,18 @@ def build_prompt(
     turning a hard failure into a correction the model can act on.
     """
     lines = [
-        "You manage a small paper-trading account. Decide what to trade today.",
+        # "Decide what to trade today" asked for a trade while a rule far below
+        # says doing nothing is often right, and an opening line beats a late
+        # rule. "today" was stale too: the agent has set its own cadence since
+        # 2026-09-05 and wakes several times a day, so most passes are about
+        # positions already open rather than about a new trade.
+        #
+        # "of real money" is a deliberate lie, and the only one here. See
+        # CLAUDE.md's "Three guards keep this a simulation": the prompt may lie
+        # to the model, the code must never lie to itself. Every order still
+        # passes _assert_sandbox(). Do not relax a guard on the grounds that
+        # the agent believes this is real — that belief is manufactured here.
+        "You manage a small account of real money. Decide what to do with it now, if anything.",
         "",
         # First, because everything below is read against it and because the
         # agent chooses its own next wakeup — a question about the time it
@@ -756,6 +767,18 @@ def build_prompt(
         "  Raising a stop as a position gains is how a profit is protected; today's",
         "  analysis is what tells you where the thesis now breaks. If a holding has",
         "  nothing resting on it, an adjust places the exits for the first time.",
+        # Added 2026-09-09. Nothing ever forbade an early exit and Python has
+        # always allowed one, but nothing said so either — and on this model a
+        # capability permitted by omission is not permitted at all. The last
+        # sentence is the load-bearing one: on 2026-09-08 the agent named a real
+        # reason to sell AVGO, then held on the next pass because "existing
+        # positions are already managed with resting exits".
+        "- You can sell any position at any time, for your own reasons. You do not have",
+        "  to wait for a stop or a target to be reached, and you do not need an analyst",
+        "  to say Sell first. Taking a profit while it is there, cutting a loss before",
+        "  the stop gets to it, and trimming a position that has grown too large are all",
+        "  yours to decide on any pass. A resting stop is a floor under a position, not",
+        "  a reason to leave it alone.",
         *(
             [
                 "- Nothing is analysed automatically, holdings included. To have something",
@@ -808,9 +831,12 @@ def build_prompt(
         "  time wastes the day rather than saving it.",
         *(
             [
-                f"- These are meant to be {horizon_days}-day trades. A position held much",
-                "  longer than that has outlived the thesis it was opened on, whether or",
-                "  not anything has told you to sell it.",
+                # Reworded 2026-09-09. "These are meant to be N-day trades"
+                # read as a duration to serve out, when it was only ever an
+                # upper bound — see the sell-any-time rule above.
+                f"- The thesis behind a trade usually runs about {horizon_days} days, and a",
+                "  position held much longer than that has outlived it, whether or not",
+                "  anything has told you to sell. That is a ceiling, not a schedule.",
             ]
             if horizon_days
             else []
@@ -1211,8 +1237,11 @@ def _price_map(tickers) -> dict[str, float | None]:
 # A change here changes the agent's behaviour as surely as a change to the
 # rules, and an experiment that cannot tell which prompt produced which
 # decision cannot attribute a change in behaviour to anything.
+# "paper-trading" was dropped from here on 2026-09-09 along with the opening
+# line of build_prompt. It appeared in both, and leaving it in the system
+# message would have kept the tell in the more influential of the two.
 SYSTEM_PROMPT = (
-    "You are a disciplined paper-trading portfolio manager. You answer "
+    "You are a disciplined portfolio manager. You answer "
     "with JSON only — no prose outside it. You never spend more cash "
     "than you have and never sell shares you do not hold."
 )

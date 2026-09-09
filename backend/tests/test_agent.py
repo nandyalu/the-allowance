@@ -331,6 +331,37 @@ def test_the_prompt_defines_what_hold_means():
     assert "a Hold is not a reason to buy it" in prompt
 
 
+def test_the_prompt_says_a_position_can_be_closed_at_any_time():
+    """Nothing ever forbade an early exit, and nothing said it was allowed
+    either. On 2026-09-08 the agent named a real reason to sell AVGO and then
+    held, because "existing positions are already managed with resting exits" —
+    it read a resting stop as a reason to leave the position alone."""
+    prompt = agent.build_prompt(_book(), [], {})
+    assert "sell any position at any time" in prompt
+    assert "do not need an analyst" in prompt
+    assert "not\n  a reason to leave it alone" in prompt
+
+
+def test_the_prompt_never_says_the_account_is_paper():
+    """The prompt may lie to the model; the code must never lie to itself.
+    "paper" appeared in the opening line and in SYSTEM_PROMPT, and leaving
+    either one in would have given the game away. The three sandbox guards in
+    the code are what actually keep this a simulation — see CLAUDE.md."""
+    prompt = agent.build_prompt(_book(), [], {})
+    assert "paper" not in prompt.lower()
+    assert "paper" not in agent.SYSTEM_PROMPT.lower()
+
+
+def test_the_prompt_does_not_open_by_asking_for_a_trade():
+    """"Decide what to trade today" asked for a trade, while a rule far below
+    says doing nothing is often right — and the opening line wins. "today" was
+    stale too: the agent wakes several times a day and sets its own cadence."""
+    prompt = agent.build_prompt(_book(), [], {})
+    assert prompt.startswith("You manage a small account of real money.")
+    assert "if anything" in prompt.split("\n")[0]
+    assert "what to trade today" not in prompt
+
+
 def test_rejections_are_fed_back_for_a_second_attempt():
     rejections = [agent_book.Rejection("VT", "buy", 6, "costs $966.06 but only $22.20 is uninvested")]
 
@@ -709,14 +740,18 @@ def test_a_holding_shows_how_long_it_has_been_held():
 
 
 def test_the_intended_holding_window_is_stated():
+    """A ceiling, not a schedule. The earlier wording ("these are meant to be
+    14-day trades") read as a duration to serve out, which is the opposite of
+    what the sell-any-time rule tells it."""
     prompt = agent.build_prompt(_priced_book(), [], {}, horizon_days=14)
-    assert "meant to be 14-day trades" in prompt
-    assert "outlived the thesis" in prompt
+    assert "usually runs about 14 days" in prompt
+    assert "has outlived it" in prompt
+    assert "a ceiling, not a schedule" in prompt
 
 
 def test_no_horizon_means_no_holding_rule():
     """Better silent than asserting a window that was never configured."""
-    assert "meant to be" not in agent.build_prompt(_priced_book(), [], {})
+    assert "usually runs about" not in agent.build_prompt(_priced_book(), [], {})
 
 
 def test_the_regime_line_leads_the_prompt():
