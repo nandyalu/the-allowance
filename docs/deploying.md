@@ -8,6 +8,7 @@
 |---|---|---|
 | **Docker** | The app ships as one image | No |
 | **Webull sandbox credentials** | The agent's account, and real-time quotes | **No.** The agent refuses to run without them |
+| **The account number to trade** | Names which simulated account this container owns | **No.** Without it the app places no order at all |
 | **A model** | Either a local GPU pool or a hosted API key | No, but either works |
 | A Discord webhook URL | Notifications | Yes — the site is identical without it |
 | A FRED API key | Macro series | Yes, but the news analyst then infers rates from headlines and says so in its own report |
@@ -16,6 +17,7 @@
 
 - **A local GPU pool.** What this runs on. Seven 8 GiB cards, and one analysis takes about 19 minutes. Free to run beyond electricity, and slow.
 - **A hosted API.** Gemini Flash-Lite does the same analysis in 1.2 to 1.6 minutes. At the measured token counts that is about **$0.056 an analysis** — roughly **$10 a month** for a nine-ticker watchlist analysed about once a day, which is a rough sizing figure now that nothing forces a fixed daily count. Fast, and it costs real money.
+- **A hosted API on a free tier.** Several providers serve an OpenAI-shaped endpoint with a daily token allowance and no card. Measured here on Cerebras: a full analysis in **153 seconds**, against about 19 minutes locally, with prices matching the real closes exactly. Fast and free, and rate-limited — see the throttle note below.
 
 Nothing else in the design cares which you pick.
 
@@ -25,11 +27,17 @@ Nothing else in the design cares which you pick.
 git clone --recurse-submodules https://github.com/nandyalu/the-allowance
 cd the-allowance
 docker build -t trading-experiment:local .
+cp compose.example.yaml compose.yaml
+cp .env.example .env
+# fill in .env, then:
+docker compose up -d
 ```
 
-Then run it with a compose file. `dockge/trading-experiment.compose.yaml` in the repo is the working template, with every setting commented.
+`compose.example.yaml` has every setting commented, and reads every value from `.env`, so it holds no secret of its own.
 
 The container applies its own database migrations at startup. There is nothing to run by hand.
+
+**Then open the dashboard.** A deployment that is not ready sends you to `/setup`, which lists what is still missing and the exact lines to paste for each one. It reports whether a thing is configured and never what it is configured to, so nothing on that page can leak a key. Switching the agent on from the settings page is the last step, and the day you do it becomes day one of the experiment.
 
 ## Every environment variable
 
@@ -40,7 +48,11 @@ The container applies its own database migrations at startup. There is nothing t
 | `WEBULL_SANDBOX=1` | **Points at the sandbox.** The agent checks this itself and refuses every order without it |
 | `WEBULL_APP_KEY` | From Webull's developer portal |
 | `WEBULL_APP_SECRET` | Likewise |
+| `WEBULL_ACCOUNT_ID` | **Which simulated account this container owns**, as the account number (`DE…`) or the internal account id. No default, deliberately — see below |
+| `WEBULL_ACCOUNT_CLASS` | `INDIVIDUAL_CASH`. A cash account refuses a short outright |
 | `WEBULL_OPENAPI_TOKEN_DIR` | Where the exchanged token is cached. Put it on the data volume so a redeploy reuses it |
+
+**`WEBULL_ACCOUNT_ID` has no default and that is the point.** Three checks already narrow the sandbox's accounts to one — the sandbox flag, the `DE` number prefix, and the account class — and they narrow to the *same* one for every deployment applying the same rule. Two containers would then trade a single book, and afterwards nothing could say which of them placed an order. A default would restore exactly that. Leave it empty and the app places no order at all, which is the honest failure.
 
 ### The experiment's own numbers
 
@@ -48,16 +60,21 @@ The container applies its own database migrations at startup. There is nothing t
 |---|---|---|
 | `AGENT_BUDGET` | `10000` | What the agent starts with |
 | `RESEARCH_PRICE_USD` | `0.05` | What one analysis costs it. `0` makes research free |
+| `EXPERIMENT_START_DATE` | — | **Leave it empty.** The date is stamped automatically the first time the agent is switched on |
 
-Both are only defaults for an unset setting — the settings page wins once anyone changes them. They matter because a fresh database has neither, and a container coming up on the wrong budget would have to be corrected by hand on its first run.
+**You do not normally set the start date.** Switching the agent on is a deliberate act by a person on a date they chose, so that day is written down and never overwritten afterwards. Everything on the site that says "since" or "day N" reads it, and so does the floor for the 1-minute bar backfill — without that, a deployment started next year would page back a year of minute bars to reach a date belonging to somebody else's run. Set the variable only to state a date the stamp cannot know, such as a deployment restored from a backup.
+
+The budget and the research price are only defaults for an unset setting — the settings page wins once anyone changes them. They matter because a fresh database has neither, and a container coming up on the wrong budget would have to be corrected by hand on its first run.
 
 ### The model
 
 | Variable | Default | What it does |
 |---|---|---|
-| `TRADINGAGENTS_LLM_PROVIDER` | `ollama` | `ollama`, `google`, `openai`, `anthropic` and others |
-| `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | Where the local pool is |
+| `TRADINGAGENTS_LLM_PROVIDER` | `ollama` | `ollama`, `google`, `openai_compatible`, `anthropic` and others |
+| `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | Where the local pool is. Only for `ollama` |
 | `GOOGLE_API_KEY` | — | Only for `google` |
+| `TRADINGAGENTS_LLM_BACKEND_URL` | — | The endpoint, for `openai_compatible` |
+| `OPENAI_COMPATIBLE_API_KEY` | — | Its key, when the endpoint wants one |
 | `TRADINGAGENTS_DEEP_THINK_LLM` | — | The model name. Both stages share one value |
 | `TRADINGAGENTS_QUICK_THINK_LLM` | — | Set it to the same thing |
 | `TRADINGAGENTS_MAX_CONCURRENT_ANALYSES` | `1` | **Set this to your GPU count.** See below |
@@ -91,6 +108,21 @@ Two things measured here that are worth knowing:
 **Price input and output separately. Never use a blended rate.** List is $0.30 per 1M input and $2.50 per 1M output — an 8x gap — so a blended figure is a function of the completion share rather than a property of the model. Blending once produced a cost estimate 39% too low.
 
 **`gemini-2.5-flash-lite` is retired** and returns `404 NOT_FOUND` on a current key. Use `3.5-flash-lite` or `3.1-flash-lite`.
+
+### Any other OpenAI-shaped endpoint
+
+Cerebras, vLLM, LM Studio, or a relay — all the same three lines:
+
+```
+TRADINGAGENTS_LLM_PROVIDER=openai_compatible
+TRADINGAGENTS_LLM_BACKEND_URL=https://api.cerebras.ai/v1
+OPENAI_COMPATIBLE_API_KEY=...
+LLM_MODEL=qwen-3.8-27b
+```
+
+**Check the daily token allowance before the requests-per-minute one.** A full analysis spends roughly 130,000 tokens, so an allowance is what decides how many analyses a day you get, and the two models on one provider's free tier differed by a factor of eighty on exactly that: one allowed about 7 analyses a day, the other about 600. The rate limit only decides how fast, and the app already waits when it is hit.
+
+**A free tier will return `429`, and that is handled.** The app reads the provider's own `retry-after` header and waits exactly that long rather than guessing, then retries up to four times. Guessing is not a small error: one vendor asks for 58 seconds, where an invented ladder of 5, 10 and 20 seconds would exhaust every retry before the window even reopened. Repeated pauses in the log are the throttle working, not a fault.
 
 ## Choosing a model, if you are running locally
 
@@ -131,7 +163,9 @@ Mount the volume read-write for the public copy. SQLite writes its `-wal` and `-
 
 **Reddit `429 Too Many Requests`** — expected. The sentiment analyst scrapes a public RSS feed with no key, and degrades to "no posts found". At high concurrency it happens a lot, and the sentiment analyst is then working with materially less data than it would at low concurrency.
 
-**The agent never trades** — check `WEBULL_SANDBOX=1`, and check the agent is switched on in Settings. It refuses to run in either case, and says so.
+**The agent never trades** — **open `/setup` first.** It checks every requirement in one place and names the ones that are missing, which is faster than reading logs. The usual answers are `WEBULL_SANDBOX=1`, an empty `WEBULL_ACCOUNT_ID`, a model endpoint that does not answer, or the agent never having been switched on in Settings.
+
+**The model dropdown in Settings is a plain text box** — the app could not list what your endpoint serves, so it stopped guessing and let you type the name. Two causes seen here, both on hosted endpoints: the request carried no API key, or the provider blocked it for having no browser-like `User-Agent`. Neither stops an analysis running; only the dropdown is lost.
 
 **Orders fill but have no stop** — Webull refuses a bracket while cash is unsettled, which happens whenever the agent sells to fund a buy. The app falls back to a plain order plus separately-armed exits, and that second step can fail. The site flags the position and offers a button that rests the missing exits.
 

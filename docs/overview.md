@@ -197,7 +197,7 @@ A vendor figure is an estimate, not the invoice. Two billed readings so far came
 
 ## The auto trader
 
-A simulated Webull account the model trades on its own, inside a budget you set (default $1,000).
+A simulated Webull account the model trades on its own, inside a budget you set (default $10,000).
 It runs on its own schedule, not a fixed one.
 
 Every decision pass ends with the agent naming when it wants to be asked again — five minutes to four days out. Naming nothing means it is asked at the following open, and a final pass always runs five minutes before the close, whatever it asked for, so no position goes into the night unreviewed.
@@ -206,8 +206,16 @@ And whenever an intraday analysis is triggered during market hours, by an unusua
 The split is deliberate. A pass the agent scheduled itself is a plan it already made — it can wake before the open to see what has gone stale and commission a fresh look, or through the day to reassess a position.
 An intraday trigger is the opposite: it arrives because the market just moved, while the market is open, and a move worth analyzing at midday is worth nothing by the next morning.
 
-**No order can reach a real account.** The app holds sandbox credentials only, and the order path refuses to run unless the sandbox flag is set, refuses any account that is not the simulated individual-cash one, and refuses an account whose number is not marked simulated.
+**No order can reach a real account.** The app holds sandbox credentials only, and the order path checks four things before every single order: that the sandbox flag is set, that the account number is marked simulated, that the account is the individual-cash one, and that it is the specific account this deployment was told it owns.
 There is no sync of a real brokerage account at all. It was removed on 2026-09-01 along with the book it fed.
+
+The fourth check is the newest and the least obvious. The first three narrow the sandbox's accounts to one — but they narrow to the *same* one for any deployment applying the same rule, so two containers would trade a single book and afterwards nothing could say which of them placed an order. `WEBULL_ACCOUNT_ID` is a person writing down which book this container owns, and it has no default: unset, the app places nothing.
+
+### What a decision pass records
+
+Each pass stores what it cost and what the model was thinking: the seconds it took, the tokens in and out, and **the model's own reasoning before it answered**.
+
+That last part used to be generated, billed and thrown away, and it was about 85% of the output tokens on a reasoning model — so the record held the decision and none of the argument for it. The decision is what the agent did; the reasoning is the only evidence about *why*, and it is the thing a reader actually wants when a trade looks strange.
 
 ### How a position gets its exits
 

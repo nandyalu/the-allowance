@@ -2,7 +2,9 @@
 
 Everything the app needs, and what happens when you skip each one.
 
-**Only the Webull sandbox keys are required.** Without them the agent refuses to run, because it has no account to trade. Everything else degrades to something sensible.
+**Only the Webull sandbox keys and a model are required.** Without them the agent refuses to run, because it has no account to trade and nothing to think with. Everything else degrades to something sensible.
+
+**You do not have to work through this page in the dark.** A deployment that is not ready sends you to `/setup`, which lists every requirement, says which are missing, and shows the exact lines to paste. It reports whether a thing is configured and never what it is configured to, so no key can leak through it.
 
 | | Required? | Without it |
 |---|---|---|
@@ -20,16 +22,21 @@ The agent's brokerage account, and real-time quotes.
 2. Create an app. You get an **App Key** and an **App Secret**.
 3. The portal issues sandbox and production credentials separately. **Take the sandbox pair.**
 
+4. Sign in to the Webull paper account itself and note the **account number** of the account you want traded. It starts with `DE`.
+
 ```
 WEBULL_APP_KEY=...
 WEBULL_APP_SECRET=...
 WEBULL_SANDBOX=1
 WEBULL_ACCOUNT_CLASS=INDIVIDUAL_CASH
+WEBULL_ACCOUNT_ID=DE00000000
 ```
 
 **`WEBULL_SANDBOX=1` is not a suggestion.** The agent reads it itself and refuses every order without it. It is the boundary between an experiment and a machine spending real money, and it is checked in code rather than trusted to a config file.
 
-`WEBULL_ACCOUNT_CLASS` picks which sandbox account to trade. `INDIVIDUAL_CASH` is the default and the right one: a cash account refuses a short outright. A margin account would fill one, which is why the app also enforces long-only itself rather than relying on the account type.
+`WEBULL_ACCOUNT_CLASS` picks which kind of sandbox account to trade. `INDIVIDUAL_CASH` is the default and the right one: a cash account refuses a short outright. A margin account would fill one, which is why the app also enforces long-only itself rather than relying on the account type.
+
+**`WEBULL_ACCOUNT_ID` names the one account this deployment owns, and it has no default.** Leave it empty and the app places no order at all. That is deliberate. The checks above narrow the sandbox's accounts to one, and they narrow to the *same* one for every deployment applying the same rule — so two containers would trade a single book, and afterwards nothing could say which of them placed an order. It takes either the account number or the internal account id, and matches whichever you give it.
 
 Quotes need a stock-quotes market-data subscription on the account. Without it, or after any failure, prices fall back to yfinance automatically.
 
@@ -101,6 +108,22 @@ TRADINGAGENTS_QUICK_THINK_LLM=gemini-3.5-flash-lite
 ```
 
 About 1.2 to 1.6 minutes an analysis, and roughly **$0.056 each** — near $10 a month for a nine-ticker watchlist analysed about once a day, a rough sizing figure since nothing forces a fixed daily count any more.
+
+### Any other OpenAI-shaped endpoint
+
+Cerebras, vLLM, LM Studio, or a relay. Several of these serve a free tier with a daily token allowance and no card.
+
+```
+TRADINGAGENTS_LLM_PROVIDER=openai_compatible
+TRADINGAGENTS_LLM_BACKEND_URL=https://api.cerebras.ai/v1
+OPENAI_COMPATIBLE_API_KEY=...
+TRADINGAGENTS_DEEP_THINK_LLM=qwen-3.8-27b
+TRADINGAGENTS_QUICK_THINK_LLM=qwen-3.8-27b
+```
+
+Measured here: a full analysis in **153 seconds**, with the prices in its market report matching the real closes exactly. Leave the key out for a local server that wants none.
+
+**Read the daily token allowance, not the requests-per-minute limit.** One analysis spends roughly 130,000 tokens, so the allowance is what sets how many you get in a day — two models on one free tier differed by a factor of eighty on that alone. When the rate limit is hit the app reads the provider's own `retry-after` header and waits exactly that long, so `429` lines in the log are the throttle working.
 
 Both stages take the same value. The model is also a database setting, so the settings page changes it without a redeploy; these variables only supply the starting value.
 

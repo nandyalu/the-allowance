@@ -4,18 +4,31 @@ The web dashboard is where you look at what happened. Discord is where you hear 
 
 Open it at the root of whatever host and port the container serves, for example `http://localhost:8080/`.
 
-**Eight pages, each answering one question.** The old table had thirteen, one per data source — Tickers, Signals, Alerts, Regime and Digest each stood alone. That shape suited an operator and left a reader to work out which page held the answer. Alerts, the regime line and the weekly digest no longer have pages of their own: each is context for something else and now sits inside it.
+**Each page answers one question.** The old table had thirteen, one per data source — Tickers, Signals, Alerts, Regime and Digest each stood alone. That shape suited an operator and left a reader to work out which page held the answer. Alerts, the regime line and the weekly digest no longer have pages of their own: each is context for something else and now sits inside it.
 
 | Page | The question it answers |
 |---|---|
 | The experiment (`/`) | What is this, and how is it going? |
 | The book (`/book`) | What did it do with the money? |
 | Decisions (`/decisions`) | Why did it do that? |
+| Notes (`/decisions/notes`) | What has it told us it cannot do? |
 | Research (`/research`) | What did it study, and was it right? |
 | Scorecard (`/scorecard`) | Is it any good? |
 | Journal (`/journal`) | What have we changed, and when? |
 
+Three more explain the experiment rather than report it, and sit in the footer: `/idea`, `/method` and `/glossary`. `/settings` and `/setup` are operator pages and are absent from the published build entirely.
+
 Old paths redirect rather than 404. Links to them exist in Discord posts and in the journal, and breaking them loses the trail back to whatever was being discussed.
+
+## Notes
+
+**Every message the agent has left for the people who maintain it**, newest first, each linking to the decision pass it came from.
+
+The agent has a `note` action for the case where something is stopping it deciding well — a number it cannot see, a tool it does not have, a rule that contradicts another. Nothing acts on a note automatically. It is a message, not a request.
+
+**These are evidence, not complaints.** The experiment asks what an AI agent does when it is given real tools, so the agent saying "I cannot see X" is the experiment reporting a missing tool. Collecting them on one page is what makes the pattern visible: one note is an observation, and the same note four times is a gap in the design.
+
+A note also never counts as acting. A pass that left only a note is still an idle pass, because otherwise "I need better data" would stand in for the decision the agent owed.
 
 ## Publishing it
 
@@ -27,7 +40,9 @@ It does two things, and the second matters more than the first.
 
 **Nothing runs.** No scheduler, no Discord, no trade stream. The published site is a second container over the same database, and if it also ran the scheduler there would be two agents deciding on one book — duplicate research commissions paying twice for the same look, duplicate decision passes, two sets of orders at the broker against one ledger. **None of that arrives as an HTTP request**, so refusing writes would not have stopped any of it. So PUBLIC_MODE means one thing said two ways: this copy does not act.
 
-Point the tunnel at the public container, not the private one. `dockge/trading-experiment.compose.yaml` has both, with the public one bound to loopback so the tunnel reaches it and the LAN does not. Mount the volume read-write for it: SQLite writes its `-wal` and `-shm` sidecars even to read, and a read-only mount fails to open the database at all. The guarantee is PUBLIC_MODE, not the mount flag.
+Point the tunnel at the public container, not the private one. `compose.example.yaml` carries it as a commented-out second service, bound to loopback so a tunnel reaches it and the local network does not. Mount the volume read-write for it: SQLite writes its `-wal` and `-shm` sidecars even to read, and a read-only mount fails to open the database at all. The guarantee is PUBLIC_MODE, not the mount flag.
+
+**This site itself no longer runs that second container.** It is a fully static export pushed to Cloudflare Pages — files with no server, no database connection and no credentials anywhere near them. The read-only container remains supported and is the simpler option to self-host; the static route exists because a live backend on a public path kept developing new ways to leak, however carefully it was gated, and removing the backend removed the whole class of problem rather than patching it again.
 
 The frontend reads the flag only to drop the Settings link and the arm-exits button. A failure to read it leaves both showing — the backend still refuses, so the worst case is a dead end rather than a hole.
 

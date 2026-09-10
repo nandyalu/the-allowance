@@ -32,6 +32,8 @@ Changes go in the journal first, with a date and a reason, and then get made by 
 
 **Running it yourself?** Start at **[Run it yourself](deploying.md)** — prerequisites, every environment variable, and what goes wrong.
 
+Once the container is up, the app takes over from the documentation: a deployment that is not ready sends you to its own `/setup` page, which names each missing requirement and shows the exact lines to paste. It reports whether a thing is configured and never what it is configured to, so nothing on it can leak a key.
+
 <div class="grid cards" markdown>
 
 - **[Run it yourself](deploying.md)** — deploy your own copy: what you need, what it costs, and troubleshooting.

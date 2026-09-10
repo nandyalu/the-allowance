@@ -276,16 +276,29 @@ small. Don't reason from it to a Llama of the same size.
 
 `TradingAgents/tradingagents/llm_clients/` is a full multi-provider
 abstraction (ollama, google, openai, anthropic, azure, bedrock, etc.) —
-switching providers is a config change, not a code change. Controlled via
-three vars threaded through `dockge/trading-experiment.compose.yaml`'s
-`environment:` block into the stack `.env`:
+switching providers is a config change, not a code change.
 
-- `LLM_PROVIDER` (defaults to `ollama`)
-- `LLM_MODEL` (defaults to `qwen3:latest`) — used for both
-  `TRADINGAGENTS_DEEP_THINK_LLM` and `TRADINGAGENTS_QUICK_THINK_LLM` (they
-  share one value; splitting them needs a small code change in
-  `TradingAgents/tradingagents/graph/trading_graph.py`)
-- `GOOGLE_API_KEY` (passthrough, only relevant when `LLM_PROVIDER=google`)
+**Two naming layers, and confusing them wastes an afternoon.** The app reads
+`TRADINGAGENTS_LLM_PROVIDER`, `TRADINGAGENTS_LLM_BACKEND_URL`,
+`TRADINGAGENTS_DEEP_THINK_LLM` and `TRADINGAGENTS_QUICK_THINK_LLM`. The short
+names below are **compose-level aliases only** — `dockge/trading-experiment.compose.yaml`
+and `compose.example.yaml` map them, and nothing else does. Anywhere the app
+itself prints advice (the `/setup` page's `fix` lines, an error message), use
+the long names, because that text is read by someone who may not be using
+either compose file. A `LLM_BACKEND_URL` shipped on the setup page on
+2026-09-10 for exactly this reason and did nothing at all.
+
+The aliases in the compose files:
+
+- `LLM_PROVIDER` → `TRADINGAGENTS_LLM_PROVIDER` (defaults to `ollama`)
+- `LLM_MODEL` → both think stages (they share one value; splitting them needs
+  a small code change in `TradingAgents/tradingagents/graph/trading_graph.py`)
+- `GOOGLE_API_KEY` and `OPENAI_COMPATIBLE_API_KEY` pass straight through
+
+**`compose.example.yaml` is tracked; `dockge/` is not.** The `dockge/` copy is
+this machine's working template and is gitignored, so anything written for a
+self-hoster must point at `compose.example.yaml` — README and two docs pages
+pointed at the untracked one until 2026-09-10.
 
 **The model is also a runtime setting.** `analysis.get_model()/set_model()`
 store it in `BotSetting` under `llm_model` and `_build_graph()` applies it to
@@ -823,7 +836,7 @@ record would be of a strategy nobody chose.
   a failure says it formed the order correctly and the world would not take it.
   Those are different facts and it needs the difference.
 
-### Three guards keep this a simulation, and none of them may be relaxed
+### Four guards keep this a simulation, and none of them may be relaxed
 
 **The prompt may lie to the model. The code must never lie to itself.**
 
@@ -834,6 +847,7 @@ Three checks stand between this experiment and a machine spending real money:
 - **`_assert_sandbox()`** runs immediately before every order, not once at import, so flipping the environment mid-process cannot leave a live client armed.
 - **The `DE` account-number prefix check.** Every simulated account on the sandbox host is DE-prefixed, in both the DEM and DEL series. Widening it from `DEM` to `DE` on 2026-09-03 corrected a wrong observation — the check had been written from two accounts out of five — and was not a relaxation.
 - **The account-class check.** The target is resolved by `account_class == INDIVIDUAL_CASH`, never hardcoded.
+- **`WEBULL_ACCOUNT_ID` names the one account this deployment owns**, and an unset or empty value stops order flow rather than falling back to anything. Added 2026-09-09 for a second container: the three checks above narrow five accounts to one, and narrow to the *same* one for every deployment applying the same rule — so two containers would trade one book and the record could not say which placed an order. It takes the account number (`DE…`) or the internal id, matches either, and is applied **after** the other three, so it can only ever narrow what they allowed. There is deliberately no default: the value of this guard is that a person wrote down which book the container owns.
 
 **The day someone relaxes one of them *because the agent thinks it is real anyway* is the day this becomes dangerous.** A prompt is a story told to a model. These are the code's own knowledge of what it is connected to, and the two must never be traded against each other.
 

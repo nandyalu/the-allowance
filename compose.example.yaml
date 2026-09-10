@@ -1,0 +1,137 @@
+# The Allowance — one agent, one simulated book, $10,000.
+#
+# Copy this file to compose.yaml, copy .env.example to .env, fill in the .env,
+# then `docker compose up -d`. Every value below reads from .env, so this file
+# holds no secret and stays safe to commit.
+#
+# Build the image first — it is never pulled:
+#   docker build -t trading-experiment:local .
+
+services:
+  trading-experiment:
+    image: trading-experiment:local
+    # Never attempt a registry pull. The tag has no registry prefix, so Docker
+    # resolves it to Docker Hub and fails with "pull access denied". The image
+    # is built locally from this repo and exists only on this host.
+    pull_policy: never
+    container_name: trading-experiment
+    restart: unless-stopped
+    # Lets the container reach a model server running on the host itself.
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    ports:
+      # The whole web app: the dashboard at the root, the JSON API under /api,
+      # and the documentation under /docs.
+      - "${HOST_PORT:-8080}:8080"
+    environment:
+      # --- Webull: required, and none of it is optional --------------------
+      # The agent refuses every order without WEBULL_SANDBOX=1, and checks it
+      # in code before each order rather than trusting this file. It is the
+      # boundary between an experiment and a machine spending real money.
+      - WEBULL_SANDBOX=1
+      - WEBULL_APP_KEY=${WEBULL_APP_KEY:?set WEBULL_APP_KEY in .env}
+      - WEBULL_APP_SECRET=${WEBULL_APP_SECRET:?set WEBULL_APP_SECRET in .env}
+      # Which simulated account THIS container owns. Required, with no default
+      # on purpose: unset or empty and the app places no order at all.
+      # Takes the account number (DE…) or the internal account id.
+      - WEBULL_ACCOUNT_ID=${WEBULL_ACCOUNT_ID:?set WEBULL_ACCOUNT_ID in .env}
+      - WEBULL_ACCOUNT_CLASS=${WEBULL_ACCOUNT_CLASS:-INDIVIDUAL_CASH}
+      # Keep the exchanged access token on the volume so a redeploy reuses it.
+      - WEBULL_OPENAPI_TOKEN_DIR=/app/data/webull
+
+      # --- the model -------------------------------------------------------
+      # Three supported shapes. Set the matching values in .env.
+      #   ollama            — a local pool. Set OLLAMA_BASE_URL.
+      #   google            — Gemini. Set GOOGLE_API_KEY.
+      #   openai_compatible — any OpenAI-shaped endpoint (Cerebras, vLLM,
+      #                       LM Studio). Set TRADINGAGENTS_LLM_BACKEND_URL
+      #                       and OPENAI_COMPATIBLE_API_KEY.
+      - TRADINGAGENTS_LLM_PROVIDER=${TRADINGAGENTS_LLM_PROVIDER:-ollama}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      - TRADINGAGENTS_LLM_BACKEND_URL=${TRADINGAGENTS_LLM_BACKEND_URL:-}
+      - OPENAI_COMPATIBLE_API_KEY=${OPENAI_COMPATIBLE_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      # Both think stages share one model name.
+      - TRADINGAGENTS_DEEP_THINK_LLM=${LLM_MODEL:-gemma4-e4b-qat-128k}
+      - TRADINGAGENTS_QUICK_THINK_LLM=${LLM_MODEL:-gemma4-e4b-qat-128k}
+      # One round each. Four rounds cost 2.3x the wall clock and changed
+      # nothing measurable.
+      - TRADINGAGENTS_MAX_DEBATE_ROUNDS=1
+      - TRADINGAGENTS_MAX_RISK_ROUNDS=1
+      # Set this to your GPU count and no higher. One analysis is internally
+      # sequential, so it occupies exactly one card; N concurrent analyses is
+      # what fills N cards. More than your card count only queues.
+      - TRADINGAGENTS_MAX_CONCURRENT_ANALYSES=${MAX_CONCURRENT_ANALYSES:-1}
+
+      # --- the experiment's own numbers ------------------------------------
+      # Defaults for an unset setting only — the settings page wins once
+      # anyone changes them. They matter because a fresh database has neither.
+      - AGENT_BUDGET=${AGENT_BUDGET:-10000}
+      - RESEARCH_PRICE_USD=${RESEARCH_PRICE_USD:-0.05}
+      # Leave empty. The start date is stamped automatically the first time
+      # the agent is switched on. Set it only to state a date the stamp cannot
+      # know — a deployment restored from a backup, say.
+      - EXPERIMENT_START_DATE=${EXPERIMENT_START_DATE:-}
+
+      # --- optional --------------------------------------------------------
+      # A webhook URL, not a bot. The app only posts. Unset means no
+      # notifications, and the site is identical without them.
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+      # Free from fred.stlouisfed.org. Without it the news analyst infers
+      # rates and the yield curve from headlines, and says so in its report.
+      - FRED_API_KEY=${FRED_API_KEY:-}
+      # Every LLM call written to disk, about 0.4 MB an analysis. Unset it to
+      # record nothing. A dataset of past runs cannot be collected later.
+      - LLM_TRACE_DIR=/app/data/tradingagents/traces
+
+      # --- TradingAgents state, all on the volume --------------------------
+      # These default to a path inside the container, which a rebuild deletes.
+      # The memory log is the one that hurts: it holds every past decision
+      # plus the reflection written once the outcome was known, and that is
+      # fed back into the agent's prompt. Losing it resets the agent's
+      # experience to zero while the database keeps every trade — so the book
+      # looks continuous and the reasoning behind it does not.
+      - TRADINGAGENTS_MEMORY_LOG_PATH=/app/data/tradingagents/memory/trading_memory.md
+      - TRADINGAGENTS_RESULTS_DIR=/app/data/tradingagents/logs
+      - TRADINGAGENTS_CACHE_DIR=/app/data/tradingagents/cache
+    volumes:
+      - agent_data:/app/data
+
+  # ---------------------------------------------------------------------------
+  # Optional: a read-only copy of the site, safe to expose publicly.
+  #
+  # Same image, same database, and it never acts. Remove this service if you
+  # are not publishing.
+  #
+  # PUBLIC_MODE does two things, and the second matters more:
+  #   1. Every write is refused, by middleware rather than a per-route check.
+  #   2. No scheduler, no Discord, no trade stream. Without this, two
+  #      containers over one database would each run their own agent on the
+  #      same book — two sets of orders against one ledger. None of that
+  #      arrives as an HTTP request, so refusing writes would not stop it.
+  #
+  # Mount the volume read-write, not `:ro`. SQLite writes its -wal and -shm
+  # sidecars even to read, and a read-only mount fails to open the database at
+  # all. The guarantee is PUBLIC_MODE, not the mount flag.
+  # ---------------------------------------------------------------------------
+  # trading-experiment-public:
+  #   image: trading-experiment:local
+  #   pull_policy: never
+  #   container_name: trading-experiment-public
+  #   restart: unless-stopped
+  #   ports:
+  #     # Bound to loopback so a tunnel reaches it and the local network does not.
+  #     - "127.0.0.1:${PUBLIC_HOST_PORT:-8090}:8080"
+  #   environment:
+  #     - PUBLIC_MODE=1
+  #     # Read so the pages show the right figures, matching the private copy.
+  #     - AGENT_BUDGET=${AGENT_BUDGET:-10000}
+  #     - RESEARCH_PRICE_USD=${RESEARCH_PRICE_USD:-0.05}
+  #     # This container holds no Webull key, so it can build no client at all.
+  #     # The flag only stops the site claiming the agent refuses to trade.
+  #     - WEBULL_SANDBOX=1
+  #   volumes:
+  #     - agent_data:/app/data
+
+volumes:
+  agent_data:
