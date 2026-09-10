@@ -785,12 +785,17 @@ The rules block:
 - A stock that moves sharply while the market is open is analysed on the spot
   whether you asked for it or not, so a volatile name may come back the same
   day regardless.
-- The signal lines above give a decision and its levels, not the analyst's
-  reasoning. To read that reasoning, use side `read` with a ticker, and a
-  `date` [...] Reading costs nothing — you already paid for the analysis.
-- You may read one analysis per pass, and asking uses the single follow-up
-  turn that a refused order would otherwise use. [...] Reading is not acting: a
-  pass that only read is an idle pass.
+- **A signal line is a verdict, not the case for it.** The reasoning behind it
+  is on record and reading it costs nothing [...] **Read one before you act on
+  it.**
+- To read one, use side `read` with a ticker, and a `date` [...]
+- You get one read per pass, and it uses the same single follow-up turn a
+  refused order would. [...] Reading is not acting: a pass that only read is an
+  idle pass.
+- **A Hold is the decision that says least**, and the one most worth reading.
+  [...]
+
+**The stance on reading changed on 2026-09-10, from sparing to expected.** The first wording said to read "when the reasoning would change what you do, not out of habit", which is advice to hesitate over something free. The costs are asymmetric: reading too often spends a turn, reading too rarely means acting on a single word. A live pass spent a long stretch reasoning about what one Hold might have meant, which is exactly what a read answers.
 - You may track at most `N` tickers. To stop watching one, use side `untrack`
   [...]
 - Untracking frees a slot the same way a sell frees cash, and in the same

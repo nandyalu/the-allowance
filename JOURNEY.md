@@ -55,7 +55,9 @@ Newest first.
 
 **This is the note action doing exactly what it exists for.** The agent could not act on the contradiction and said so instead, precisely enough to fix — including the part the first fix missed.
 
-**A Hold now points at the read tool.** It is the decision that says least: it can mean the analyst saw nothing, or saw a case for holding a position and none for adding to it, and the word is the same either way. The agent spent a long stretch of one pass reasoning about which it had, which is the question a read answers.
+**Reading an analysis became expected rather than rationed.** The first wording said to read "when the reasoning would change what you do, not out of habit", which is advice to hesitate over something that costs nothing. The costs are asymmetric: reading too often spends a turn the pass had anyway, reading too rarely means acting on a single word. A signal line is a verdict; the reasoning is where the case for it lives.
+
+**A Hold is named as the one most worth reading.** It is the decision that says least: it can mean the analyst saw nothing, or saw a case for holding a position and none for adding to it, and the word is the same either way. The agent spent a long stretch of one pass reasoning about which it had, which is the question a read answers.
 
 **What a day on a hosted model costs, measured.** `qwen-3.8-27b` on Cerebras ran 6 analyses and 12 decision passes for **$2.54** — 1.38M prompt and 714k completion tokens, 34% completion because the model reasons out loud. That is **$0.40 an analysis** against roughly $0.04 of marginal electricity for the same six on the local pool, which is ten times, and it is a real figure rather than a projection.
 

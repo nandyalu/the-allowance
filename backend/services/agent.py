@@ -1379,11 +1379,10 @@ _FIXED_RULES = [
     # as the same word as a flat Hold. It spent a long stretch of one pass
     # reasoning about whether a particular Hold was worth acting on, which is
     # exactly the question a read answers.
-    "- **A Hold is the decision that says least.** It can mean the analyst saw "
-    "nothing, or that they saw a case worth holding a position for and no case "
-    "for adding to it. The word is the same either way. If a Hold is the "
-    "difference between acting and not, read it rather than reasoning about "
-    "what it might have meant.",
+    "- **A Hold is the decision that says least**, and the one most worth "
+    "reading. It can mean the analyst saw nothing, or that they saw a case "
+    "worth holding a position for and no case for adding to it. The word is "
+    "the same either way.",
     "- You can also move the stop and take-profit on something you already "
     "hold, without buying or selling any of it. Use side \"adjust\" with a "
     "\"stop\" or a \"target\" price, or both. The stop must be below the current "
@@ -1398,16 +1397,24 @@ _FIXED_RULES = [
     "a loss before the stop gets to it, and trimming a position that has "
     "grown too large are all yours to decide on any pass. A resting stop is a "
     "floor under a position, not a reason to leave it alone.",
-    "- The signal lines above give a decision and its levels, not the analyst's "
-    "reasoning. To read that reasoning, use side \"read\" with a ticker, and a "
-    "\"date\" like \"2026-09-08\" if you want a particular one rather than the "
-    "newest. Reading costs nothing — you already paid for the analysis. It is "
-    "most useful for comparing the analysis you bought on against today's, to "
-    "see whether the thesis still holds.",
-    "- You may read one analysis per pass, and asking uses the single follow-up "
-    "turn that a refused order would otherwise use. So read when the "
-    "reasoning would change what you do, not out of habit. Reading is not "
-    "acting: a pass that only read is an idle pass.",
+    # **The stance changed on 2026-09-10, from sparing to expected.** It read
+    # "read when the reasoning would change what you do, not out of habit",
+    # which is advice to hesitate. Reading is free and one pass can only do it
+    # once, so the cost of reading too often is a turn and the cost of reading
+    # too rarely is acting on a word. A signal line is a verdict; the reasoning
+    # is where the case for it lives.
+    "- **A signal line is a verdict, not the case for it.** The reasoning "
+    "behind it is on record and reading it costs nothing — you already paid "
+    "for that analysis. Read one before you act on it: the line tells you what "
+    "the analyst concluded, and the reasoning tells you what they saw, how "
+    "sure they were, and what would change their mind.",
+    "- To read one, use side \"read\" with a ticker, and a \"date\" like "
+    "\"2026-09-08\" if you want a particular analysis rather than the newest. "
+    "Comparing the one you bought on against today's is how you tell whether a "
+    "thesis still holds.",
+    "- You get one read per pass, and it uses the same single follow-up turn a "
+    "refused order would. Spend it on the decision that turns on it. Reading "
+    "is not acting: a pass that only read is an idle pass.",
     "- Doing nothing is a valid answer, and often the right one.",
     "- You decide when you are next asked, and nothing else does. Put "
     "\"next_wakeup\" beside your orders as an ISO datetime — "

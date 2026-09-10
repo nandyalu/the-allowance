@@ -2287,8 +2287,18 @@ def test_the_json_example_shows_the_format_the_rules_ask_for():
     assert "T09:00" in example, f"the example contradicts the rule: {example}"
 
 
-def test_a_hold_points_at_the_read_tool():
-    """A Hold can mean the analyst saw nothing, or saw a case for holding and
-    none for adding. The agent spent a long stretch of one pass reasoning about
-    which it had."""
-    assert "read it rather than reasoning about" in agent.SYSTEM_PROMPT
+def test_the_rules_expect_a_read_before_acting_on_a_signal():
+    """The stance changed on 2026-09-10, from sparing to expected.
+
+    It read "read when the reasoning would change what you do, not out of
+    habit", which is advice to hesitate over something that is free. Reading
+    costs nothing and one pass can only do it once, so the cost of reading too
+    often is a turn and the cost of reading too rarely is acting on a word.
+    """
+    rules = agent.SYSTEM_PROMPT
+
+    assert "Read one before you act on it" in rules
+    assert "not out of habit" not in rules, "the old, discouraging framing is back"
+    # And a Hold is still named as the decision most worth reading, because it
+    # is the one word that hides the most.
+    assert "the one most worth" in rules
