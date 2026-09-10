@@ -739,11 +739,19 @@ awaited, so a slow decision pass can never hold up the app coming up.
 
 ### The rules, verbatim
 
-The system message:
+**The rules live in two places since 2026-09-10, split by whether they quote a number from the pass.** The fixed ones are in `SYSTEM_PROMPT`, sent once per call and never rebuilt. The ones carrying a figure — the cash limit, the watchlist cap, the trade horizon, the conviction floor, the research price — stay in the user message beside the numbers they name. `_FIXED_RULES` holds the first set; `build_prompt` assembles the second.
+
+The system message opens:
 
 > You are a disciplined portfolio manager. You answer with JSON only — no prose
 > outside it. You never spend more cash than you have and never sell shares you
 > do not hold.
+>
+> The rules below never change. The message that follows carries this pass's own
+> figures — the clock, your cash, your holdings, the analyst signals — and the
+> few rules that quote a number from them.
+
+Then the thirteen fixed rules. The list below is all of them plus the dynamic ones, in the order the model reads them; a rule marked **(pass)** is the kind that carries a figure and therefore sits in the user message.
 
 The opener above it, from `build_prompt`:
 

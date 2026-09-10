@@ -156,7 +156,9 @@ def test_the_prompt_states_cash_and_holdings():
     book = _book(cash=250.0, holdings=[("AAA", 2, 100.0)])
     book.holdings[0].price = 120.0
 
-    prompt = agent.build_prompt(book, [], {})
+    # The fixed rules moved into the system message on 2026-09-10, so
+    # "what the agent is told" is both halves of what _ask sends.
+    prompt = agent.SYSTEM_PROMPT + agent.build_prompt(book, [], {})
 
     assert "$250.00" in prompt
     assert "AAA" in prompt
@@ -312,7 +314,9 @@ def test_the_prompt_explains_that_selling_funds_a_buy():
     book = _book(cash=10.0, holdings=[("AAA", 10, 90.0)])
     book.holdings[0].price = 97.0
 
-    prompt = agent.build_prompt(book, [], {})
+    # The fixed rules moved into the system message on 2026-09-10, so
+    # "what the agent is told" is both halves of what _ask sends.
+    prompt = agent.SYSTEM_PROMPT + agent.build_prompt(book, [], {})
 
     assert "Selling all 10 would raise about $970.00" in prompt
     assert "sell something" in prompt
@@ -327,7 +331,9 @@ def test_the_prompt_says_the_total_is_what_is_capped():
 
 def test_the_prompt_defines_what_hold_means():
     """It bought 98% of the budget into a stock whose only signal was Hold."""
-    prompt = agent.build_prompt(_book(), [], {})
+    # The fixed rules moved into the system message on 2026-09-10, so
+    # "what the agent is told" is both halves of what _ask sends.
+    prompt = agent.SYSTEM_PROMPT + agent.build_prompt(_book(), [], {})
     assert "a Hold is not a reason to buy it" in prompt
 
 
@@ -336,10 +342,12 @@ def test_the_prompt_says_a_position_can_be_closed_at_any_time():
     either. On 2026-09-08 the agent named a real reason to sell AVGO and then
     held, because "existing positions are already managed with resting exits" —
     it read a resting stop as a reason to leave the position alone."""
-    prompt = agent.build_prompt(_book(), [], {})
+    # The fixed rules moved into the system message on 2026-09-10, so
+    # "what the agent is told" is both halves of what _ask sends.
+    prompt = agent.SYSTEM_PROMPT + agent.build_prompt(_book(), [], {})
     assert "sell any position at any time" in prompt
     assert "do not need an analyst" in prompt
-    assert "not\n  a reason to leave it alone" in prompt
+    assert "a reason to leave it alone" in prompt
 
 
 def test_the_prompt_never_says_the_account_is_paper():

@@ -34,9 +34,14 @@ def _flat(text: str) -> str:
 
 def test_the_quoted_system_message_is_the_real_one():
     """CLAUDE.md quotes SYSTEM_PROMPT verbatim under 'The rules, verbatim'."""
-    assert _flat(agent.SYSTEM_PROMPT) in FLAT, (
+    # The identity paragraph, not the whole message. The fixed rules moved into
+    # SYSTEM_PROMPT on 2026-09-10, and CLAUDE.md abbreviates several of them
+    # with [...] — quoting all thirteen verbatim would make that section a
+    # duplicate of the code rather than a description of it.
+    identity = agent.SYSTEM_PROMPT.split("\n\n")[0]
+    assert _flat(identity) in FLAT, (
         "CLAUDE.md's quoted system message no longer matches the code.\n\n"
-        f"The code says:\n  {_flat(agent.SYSTEM_PROMPT)}\n\n"
+        f"The code says:\n  {_flat(identity)}\n\n"
         "Update the quotation under 'The rules, verbatim'. It drifted on "
         "2026-09-09 when the prompt stopped calling the account paper-trading, "
         "and stayed wrong for a day."
@@ -82,7 +87,12 @@ def test_the_rules_that_exist_because_of_a_live_failure_are_still_there():
     than its cash, it listed a buy before the sell that funded it, and it
     bought on a Hold.
     """
-    source = re.sub(r"\s+", " ", pathlib.Path(agent.__file__).read_text())
+    # Rendered, not read from source. Since 2026-09-10 the fixed rules are
+    # wrapped string literals in _FIXED_RULES, so the file contains
+    # 'for " "a buy' where the prompt contains "for a buy" — a source
+    # match would fail on a rule that is present and correct.
+    import backend.tests.test_agent as _t
+    source = _flat(agent.SYSTEM_PROMPT + agent.build_prompt(_t._book(), [], {}))
 
     missing = [name for name, phrase in FAILURE_DERIVED.items() if _flat(phrase) not in source]
 

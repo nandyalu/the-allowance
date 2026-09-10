@@ -128,7 +128,9 @@ def test_nothing_is_said_when_everything_is_settled():
 
 
 def test_the_rule_offers_the_choice():
-    prompt = agent.build_prompt(_book(), [], {})
+    # The fixed rules moved into the system message on 2026-09-10, so
+    # "what the agent is told" is both halves of what _ask sends.
+    prompt = agent.SYSTEM_PROMPT + agent.build_prompt(_book(), [], {})
     assert "next_wakeup" in prompt
     assert "minimum is 5 minutes" in prompt
 
@@ -137,7 +139,9 @@ def test_the_rule_says_any_hour_is_allowed():
     """The agent schedules itself now, so the prompt has to say the session no
     longer bounds it — and that orders still do not work when the market is
     shut, which is a different fact."""
-    prompt = agent.build_prompt(_book(), [], {})
+    # The fixed rules moved into the system message on 2026-09-10, so
+    # "what the agent is told" is both halves of what _ask sends.
+    prompt = agent.SYSTEM_PROMPT + agent.build_prompt(_book(), [], {})
     assert "before the open, after the close and" in prompt
     assert "rejects one outright while the market is shut" in prompt
 
@@ -145,7 +149,7 @@ def test_the_rule_says_any_hour_is_allowed():
 def test_the_rule_names_the_fallback():
     """Naming no time is not a plan, and the agent should know what silence
     costs it."""
-    assert "asked at the following open" in agent.build_prompt(_book(), [], {})
+    assert "asked at the following open" in agent.SYSTEM_PROMPT
 
 
 def test_the_prompt_says_how_long_an_analysis_takes():

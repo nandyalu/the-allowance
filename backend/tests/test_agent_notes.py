@@ -109,7 +109,10 @@ def test_the_prompt_offers_the_note_and_says_it_replaces_nothing():
     without the second a note becomes a way to avoid deciding."""
     import inspect
 
-    src = inspect.getsource(agent.build_prompt)
+    # Rendered, not read from source: the fixed rules moved into
+    # SYSTEM_PROMPT on 2026-09-10, and adjacent string literals in the
+    # file break a phrase match that a rendered prompt passes.
+    src = agent.SYSTEM_PROMPT + agent.build_prompt(_book(), [], {})
     assert 'side "note"' in src
     assert "never a substitute for a decision" in src
 

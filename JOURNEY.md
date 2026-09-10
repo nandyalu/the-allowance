@@ -53,6 +53,17 @@ Newest first.
 
 **2026-09-10 — the prompt states the year, tables the numbers, and moves its fixed rules into the system message.** The agent's own reasoning showed it working out what year it was from a date that never said, and puzzling over whether a price on a signal line was the price now or the price at the analysis. Three fixes to one prompt: the clock line carries the year, the signals and the tracked tickers are tables with named columns instead of run-on sentences, and the rules that never change moved to the system message, leaving the user message to the figures that do.
 
+**Measured in three shapes, same data, same model, back to back.** The tables alone cut the model's output; moving the fixed rules to the system message cut it again and took a quarter off the wall clock.
+
+| | Old | Tables | Tables + split rules |
+|---|---|---|---|
+| Seconds | 73.6 | 73.5 | **54.0** (−27%) |
+| Prompt tokens | 3,435 | 3,570 | 3,541 (+3%) |
+| Completion tokens | 2,383 | 1,952 | **1,709** (−28%) |
+| Reasoning characters | 5,707 | 4,325 | **3,609** (−37%) |
+
+**All three bought 2 CRWV.** The old and tabled runs then bought 6 MARA; the split one bought 1 SMCI instead — a different second choice, not a different thesis. **One run each at temperature 1 is one sample**, and this project has measured two of twelve paired analyses agreeing, so treat the direction as encouraging and the size as unmeasured.
+
 **Measured rather than assumed, on the same data through the deployed model.** Both prompts were built from one database copy, so only the formatting differed, and both went to `gemma4-e4b-qat-128k` back to back. The prompt grew 3.9% and the model's output fell: **completion 2,396 to 2,006 tokens (-16%)**, reasoning 5,231 to 4,878 characters, wall clock unchanged at 73 and 75 seconds. Both runs reached the same decision — buy 2 CRWV — so the format changed how much working-out it took, not what it concluded. **One run each, at temperature 1, is one sample and not a result.**
 
 **The rules split by whether they vary, not by importance.** A rule holding a number from this pass — the cash limit, the watchlist cap, the horizon — has to be rebuilt every time, so it stays in the user message. The rest are constant across every pass of the experiment and were being re-sent each time.
