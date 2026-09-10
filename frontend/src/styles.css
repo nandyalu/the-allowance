@@ -362,24 +362,15 @@ body {
   text-overflow: ellipsis;
 }
 
-/* Between the nav's breakpoint and a wide desktop the masthead is full: the
-   destinations, the brand and the tools already use the row. Squeezed in
-   there the stamp truncated to a 4px sliver and still forced the page 
-   sideways at 900px, so it steps out of that band entirely. It is present
-   above it, and takes its own row below it. */
-@media (min-width: 52.0625rem) and (max-width: 75rem) {
-  .snapshot-age {
-    display: none;
-  }
-}
-
 /* Below the nav's breakpoint the masthead is tight. It stays — a phone reader
    needs the staleness as much as anyone — but stops claiming the free space,
    so the brand and the tools keep their positions. */
-/* Its own row on a narrow screen. In the tools row it pushed 56px off the
-   right of a 420px phone, and a phone reader needs the staleness as much as
-   anyone — so the masthead wraps rather than the label disappearing. */
-@media (max-width: 52rem) {
+/* Its own row wherever the masthead row is already full — which is every
+   width below 75rem, not just a phone. It was hidden between 52rem and 75rem
+   at first, and that band covers most laptop windows: the stamp was invisible
+   to the majority of desktop readers, which is the opposite of the point. It
+   wraps instead. */
+@media (max-width: 75rem) {
   .masthead-inner {
     flex-wrap: wrap;
   }
