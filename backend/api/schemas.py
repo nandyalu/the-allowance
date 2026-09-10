@@ -333,6 +333,12 @@ class SettingsOut(Schema):
     alerts_enabled: bool
     agent_enabled: bool
     agent_budget: float
+    # What one analysis costs the agent. Served rather than written into the
+    # frontend bundle, which had it as "$0.05" in six places — so a deployment
+    # charging something else, or charging nothing, told its readers a price
+    # it does not charge. Zero is a supported mode, not an unset value:
+    # research.is_charging() is get_price() > 0.
+    research_price: float
     # The conviction floor. Zero means off, which is the default — see
     # backend/services/agent.py on why it stays off until calibration earns it.
     agent_min_win_probability: float

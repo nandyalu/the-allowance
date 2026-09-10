@@ -16,6 +16,7 @@ const SERVER_SETTINGS: Settings = {
   alerts_enabled: true,
   agent_enabled: false,
   agent_budget: 1000,
+  research_price: 0.05,
   agent_min_win_probability: 0,
   agent_min_risk_reward: 0,
   public: false,

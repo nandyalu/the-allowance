@@ -2,6 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <!-- The $10,000 in the title and the social cards below is the published
+         experiment's figure, and it stays hardcoded on purpose. Every other
+         mention of the budget in the app reads the live setting, but this is
+         the document head: it is parsed before Angular runs and is what a
+         crawler or a link preview reads, so nothing can fill it in without
+         server-side rendering. It is the site's framing rather than a live
+         number, and a self-hosted copy on a different budget gets a page
+         title that is a little off. That is the whole cost. -->
     <title>The Allowance — what does an AI agent do with $10,000?</title>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />

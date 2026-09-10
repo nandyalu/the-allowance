@@ -75,6 +75,16 @@ Newest first.
 
 **The rule this suggests: site copy may state what the software does, and may not state what this deployment has done.** The two read identically while only one deployment exists, which is why every one of these survived. A date or a history in a template is a bug even when it is currently true.
 
+**A fourth pass applied that rule to the numbers, and found the research charge written into six templates.** "$0.05" was stated as fact on the research page twice, the experiment page, the method page, the idea page and the glossary — while the charge is a setting, and `research.is_charging()` is `get_price() > 0`, so **free research is a supported mode**. A deployment charging nothing told every reader it charged five cents, on the page explaining why the charge matters.
+
+**So the price is served, like the start date before it.** `/api/settings` carries `research_price`, `shared/research-price.ts` holds it, and the copy changes rather than printing "$0.00" — a figure that reads as a bug rather than as a deliberate setting. The guard in `setResearchPrice` checks for a usable number rather than for truthiness, because `if (!usd) return` would keep the default on exactly the deployment this was built for. That is what its test pins.
+
+**The glossary states no figure at all now.** Those strings are static data rather than a template, so a deployment that changed the charge would have had the tooltip contradicting the page it was sitting on. The pages name the real amount; the tooltip explains why there is one.
+
+**The budget is bound the same way, with one deliberate exception.** `index.html`'s title and social cards keep "$10,000" hardcoded: the document head is parsed before Angular runs and is what a crawler reads, so nothing can fill it in without server-side rendering. It is the site's framing rather than a live number, and the cost is a page title that is slightly off on a self-hosted copy. There is a comment there saying so, because it looks exactly like the bug this entry is about.
+
+**Two more from the same pass.** The idea page still costed a cloud analysis "against 7 to 10 locally", which was the model replaced on 2026-09-01, and still measured the pool's power draw "while a sweep is running". And the experiment page's list of what the agent chooses did not include **when it is next asked** — the largest thing it chooses, and the subject of the bug fixed earlier the same day.
+
 **And two numbers were from the previous model.** `docs/overview.md` costed an analysis at "about seven minutes of GPU", which was `gemma4-e2b-96k`'s figure; the model in use since 2026-09-01 takes about nineteen. The data-sources list still said yfinance "provides all historical bars", which stopped being true on 2026-09-08 when the daily cache started trying Webull first.
 
 **2026-09-10 — a first-run page says what is missing, instead of leaving a self-hoster reading docs and container logs.** Everything this app needs to run was configured through environment variables discovered by reading documentation, and everything that went wrong announced itself only in a log line nobody was watching. A new deployment came up looking healthy and doing nothing, and finding out why meant `docker logs`.

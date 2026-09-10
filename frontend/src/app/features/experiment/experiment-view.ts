@@ -9,6 +9,7 @@ import { EquityChart, EquityPoint } from '../../shared/equity-chart';
 import { Logo } from '../../shared/logo';
 import { ClockTime, marketTime, readerTime } from '../../shared/market-time';
 import { dayNumber, startedOn } from '../../shared/experiment';
+import { charging, researchPriceLabel } from '../../shared/research-price';
 
 /** One row of the two-day timeline. */
 interface Beat {
@@ -43,6 +44,10 @@ interface Beat {
   templateUrl: './experiment-view.html',
 })
 export class ExperimentView {
+  /** The charge this deployment actually makes, and whether it makes one.
+   * Written into the template as "$0.05" until 2026-09-10. */
+  protected readonly researchPriceLabel = researchPriceLabel;
+  protected readonly charging = charging;
   private readonly agentService = inject(AgentService);
   private readonly regimeService = inject(RegimeService);
   private readonly scorecardService = inject(ScorecardService);

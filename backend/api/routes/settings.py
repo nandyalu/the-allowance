@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException
 
 from backend.database import db
 from backend.services import (
-    agent, agent_book, analysis, experiment, publish, quotes, watchdog,
+    agent, agent_book, analysis, experiment, publish, quotes, research, watchdog,
 )
 from backend.api.schemas import SettingsOut, SettingsPatchIn
 
@@ -33,6 +33,7 @@ def _current_settings() -> SettingsOut:
         alerts_enabled=alerts.enabled,
         agent_enabled=agent.is_enabled(),
         agent_budget=agent_book.get_budget(),
+        research_price=research.get_price(),
         agent_min_win_probability=agent.get_conviction()[0],
         agent_min_risk_reward=agent.get_conviction()[1],
         public=publish.is_public(),

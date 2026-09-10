@@ -274,6 +274,11 @@ export interface Settings {
   alerts_enabled: boolean;
   agent_enabled: boolean;
   agent_budget: number;
+  /** What one analysis costs the agent here. Served rather than compiled in —
+   * it was "$0.05" in six templates, so a deployment charging something else
+   * stated a price it does not charge. Zero means research is free, which is a
+   * real setting. See shared/research-price.ts. */
+  research_price: number;
   /** The conviction floor. Zero means off, which is the default. */
   agent_min_win_probability: number;
   agent_min_risk_reward: number;

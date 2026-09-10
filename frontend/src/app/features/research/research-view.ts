@@ -7,6 +7,7 @@ import { TickersService } from '../../core/services/tickers.service';
 import { WatchlistService } from '../../core/services/watchlist.service';
 import { DecisionBadge } from '../../shared/decision-badge';
 import { Term } from '../../shared/glossary/term';
+import { charging, researchPriceLabel } from '../../shared/research-price';
 
 type StatusFilter = '' | 'pending' | 'resolved';
 
@@ -32,6 +33,10 @@ type StatusFilter = '' | 'pending' | 'resolved';
   templateUrl: './research-view.html',
 })
 export class ResearchView {
+  /** The charge this deployment actually makes, and whether it makes one.
+   * Written into the template as "$0.05" until 2026-09-10. */
+  protected readonly researchPriceLabel = researchPriceLabel;
+  protected readonly charging = charging;
   private readonly tickersService = inject(TickersService);
   private readonly signalsService = inject(SignalsService);
   private readonly watchlistService = inject(WatchlistService);

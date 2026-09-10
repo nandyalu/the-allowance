@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { charging, researchPriceLabel } from '../../shared/research-price';
 
 /**
  * How the experiment is run, and what is wrong with it.
@@ -15,4 +16,9 @@ import { Component } from '@angular/core';
   selector: 'app-method-view',
   templateUrl: './method-view.html',
 })
-export class MethodView {}
+export class MethodView {
+  /** The charge this deployment actually makes, and whether it makes one.
+   * Written into the template as "$0.05" until 2026-09-10. */
+  protected readonly researchPriceLabel = researchPriceLabel;
+  protected readonly charging = charging;
+}

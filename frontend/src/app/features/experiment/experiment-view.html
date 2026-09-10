@@ -43,10 +43,20 @@
         <div>
           <p class="guardrails-head">It chooses</p>
           <ul>
-            <li>Which tickers to study, and when a fresh look is worth $0.05</li>
+            @if (charging()) {
+              <li>
+                Which tickers to study, and when a fresh look is worth {{ researchPriceLabel() }}
+              </li>
+            } @else {
+              <li>Which tickers to study, and when one is worth a fresh look</li>
+            }
             <li>What to buy and sell, and how much</li>
             <li>Where to rest its stop and its target</li>
             <li>Which names to stop watching</li>
+            <!-- Added 2026-09-10. It has set its own times since 2026-09-05
+                 and this list did not say so, which left the most important
+                 thing it chooses off the list of things it chooses. -->
+            <li>When it is next asked, at any hour it likes</li>
           </ul>
         </div>
         <div>

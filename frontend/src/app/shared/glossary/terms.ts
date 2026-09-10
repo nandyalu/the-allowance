@@ -66,9 +66,13 @@ export const TERMS: Term[] = [
   {
     id: 'research-charge',
     label: 'research charge',
+    // Deliberately states no figure. These strings are static data rather than
+    // a template, and the charge is a setting — a deployment that changed it,
+    // or set it to zero, would have this tooltip contradicting the pages
+    // around it, which name the real amount.
     short:
-      'What the agent pays to have one ticker analysed — $0.05, whenever it decides a fresh look is worth ordering. It comes out of the same money it trades with.',
-    long: 'The charge is the point of letting the agent choose what to study. Free research is just a longer watchlist, and an agent that pays nothing for being wrong about what was worth studying learns nothing from being wrong. Nothing on the watchlist is analysed on a schedule; the agent orders a look, holdings included, whenever it judges one worth the $0.05.',
+      'What the agent pays to have one ticker analysed, whenever it decides a fresh look is worth ordering. It comes out of the same money it trades with.',
+    long: 'The charge is the point of letting the agent choose what to study. Free research is just a longer watchlist, and an agent that pays nothing for being wrong about what was worth studying learns nothing from being wrong. Nothing on the watchlist is analysed on a schedule; the agent orders a look, holdings included, whenever it judges one worth the price.',
   },
   {
     id: 'untrack',

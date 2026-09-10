@@ -31,10 +31,19 @@
         never shown — the sandbox account holds far more, and if that number reached the prompt the
         budget would mean nothing.
       </li>
-      <li>
-        <strong>$0.05 per analysis</strong>, charged whenever the agent orders one — nothing on its
-        watchlist is analysed on a schedule — out of the same money it trades with.
-      </li>
+      @if (charging()) {
+        <li>
+          <strong>{{ researchPriceLabel() }} per analysis</strong>, charged whenever the agent
+          orders one — nothing on its watchlist is analysed on a schedule — out of the same money it
+          trades with.
+        </li>
+      } @else {
+        <li>
+          <strong>Research is free here</strong>, and that is a deliberate setting rather than an
+          oversight. The charge exists so that choosing what to study costs something; without it
+          the agent has no scarcity to reason about, and its watchlist is bounded only by the cap.
+        </li>
+      }
       <li>
         <strong>No human input.</strong> No control on this site or in Discord can add a ticker,
         start an analysis or place a trade.
@@ -146,7 +155,8 @@
         minutes at seven concurrent.
       </li>
       <li>
-        <strong>Data:</strong> Webull for quotes and the paper account, yfinance for price history,
+        <strong>Data:</strong> Webull for quotes, the simulated account and — since 8 September —
+        price history too, with yfinance as the fallback and the source of the earnings calendar.
         FRED for macro series, Reddit's public feeds for sentiment.
       </li>
     </ul>

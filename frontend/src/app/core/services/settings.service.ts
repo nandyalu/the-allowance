@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { ActionResult, Settings, SettingsPatch } from '../models/api.models';
 import { setExperimentStart } from '../../shared/experiment';
+import { setResearchPrice } from '../../shared/research-price';
 
 @Injectable({ providedIn: 'root' })
 export class SettingsService {
@@ -28,6 +29,7 @@ export class SettingsService {
    * which had a second container claiming the first one's start date. */
   private apply(data: Settings): void {
     setExperimentStart(data.experiment_start);
+    setResearchPrice(data.research_price);
     this._settings.set(data);
   }
 }
