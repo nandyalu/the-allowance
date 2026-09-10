@@ -149,6 +149,8 @@ grep -rn "WEBULL_ACCOUNT_ID" docs/ README.md .env.example compose.example.yaml
 
 A newly required variable that appears in no doc produces a container that starts, reports healthy, and never places an order.
 
+**A check that reads a variable is not a check that the thing works.** `/setup` verified `WEBULL_ACCOUNT_ID` held *something* and reported ready, while the sandbox had reissued its account numbers and the deployment could place no order. When adding a requirement, ask which of the two facts it tests — the value exists, or the thing the value names answers — and prefer the second.
+
 ---
 
 ## 7. Cross-references still resolve

@@ -120,26 +120,62 @@ def _sandbox() -> Requirement:
 
 
 def _account() -> Requirement:
+    """Whether the named account exists at the broker, not merely whether the
+    variable holds something.
+
+    **Reachability, for the reason ``_llm`` gives**: "the variable is set" and
+    "the broker has that account" are different facts, and only the second one
+    places an order. This checked the first alone until 2026-09-10, when the
+    sandbox's account numbers changed under a running deployment: the page
+    reported ready, the agent was switched on, and every pass logged "this
+    deployment will not place orders". The one page whose job is to make that
+    visible was the page saying it was fine.
+
+    Three states, because "not set" and "set to something that is not there"
+    need different answers from a reader.
+    """
+    named = True
     try:
         sandbox_broker.configured_account()
-        ready = True
     except sandbox_broker.NoAccountConfiguredError:
-        ready = False
-    return Requirement(
-        key="account",
-        label="The account this deployment owns",
-        ready=ready,
-        blocking=True,
-        detail=(
-            "Named." if ready else
+        named = False
+
+    resolved = False
+    if named:
+        try:
+            # The cached value when there is one, so the page costs a Webull
+            # call once rather than on every load.
+            resolved = bool(sandbox_broker.get_paper_account_id())
+        except Exception:
+            log.warning("Setup check could not resolve the configured account", exc_info=True)
+
+    if not named:
+        detail = (
             "Name the one simulated account this container may trade. Without it no "
             "order is placed at all. Two containers sharing an account would trade "
             "one book, and afterwards nothing could say which of them did what."
-        ),
+        )
+    elif not resolved:
+        detail = (
+            "Named, but the broker did not return it. The account number, the account "
+            "class, or the credentials above do not match a simulated account that "
+            "exists — so the agent runs and places nothing. Sandbox account numbers "
+            "do change; check the list at Webull rather than a number written down "
+            "earlier."
+        )
+    else:
+        detail = "Named, and the broker returned it."
+
+    return Requirement(
+        key="account",
+        label="The account this deployment owns",
+        ready=resolved,
+        blocking=True,
+        detail=detail,
         # A shaped placeholder, not a real account. The number this deployment
         # owns is the one thing on this page a reader must supply themselves,
         # and an example that looks copyable invites pasting it.
-        fix="" if ready else "WEBULL_ACCOUNT_ID=DEL00000000",
+        fix="" if resolved else "WEBULL_ACCOUNT_ID=DEL00000000",
     )
 
 

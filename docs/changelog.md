@@ -8,6 +8,8 @@ Entries are one or two lines: what changed, and why. Newest first.
 
 ## 2026-09-10
 
+- **Setup** — The account check asks the broker whether the named account exists, instead of only checking the variable holds something. A second deployment reported ready with a number the sandbox no longer issues, while every pass logged "this deployment will not place orders" — the one page whose job is to make that visible was the page saying it was fine. The LLM check already drew this distinction; the account check had not.
+
 - **Docs** — Three more skills in `.claude/skills/`, each built from something that actually went wrong: `review-contribution` for the rules a test cannot judge, `model-change` for the acid test that rejected five of six models, and `incident` for working out which days a silent fault contaminated. Every SQL query in the last one was run before it shipped.
 - **Docs** — `CONTRIBUTING.md` and `AI_POLICY.md` added, both on the docs site and linked from the README, which also gains a licence section it never had. Contributing asks for a `Signed-off-by` line plus a grant to release the contribution under any licence, so PolyForm Noncommercial's commercial option survives contact with contributed code.
 - **Tests** — Four invariants that were held by prose alone are now pinned by tests: every order path asserts the sandbox and the order API is reachable from one module only; the write surface is exactly the two routes that decide nothing; CLAUDE.md's quoted prompt matches the code, and the three rules that exist because of a live failure are still in it; and no module awaits a single-ticker analysis inside a loop. Each was verified by breaking the invariant and watching the test catch it.

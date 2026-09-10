@@ -32,6 +32,11 @@ def fully_configured(monkeypatch):
     monkeypatch.setattr(setup_check.analysis, "list_models", lambda: ["a-model"])
     monkeypatch.setattr(setup_check.agent, "is_enabled", lambda: True)
     monkeypatch.setattr(setup_check.db, "get_setting", lambda key: "on")
+    # The account check resolves against the broker since 2026-09-10, so this
+    # has to be stubbed or the conftest guard refuses the live call.
+    monkeypatch.setattr(
+        setup_check.sandbox_broker, "get_paper_account_id", lambda: "AN-ACCOUNT-ID"
+    )
 
 
 @pytest.fixture
@@ -41,6 +46,7 @@ def nothing_configured(monkeypatch):
     monkeypatch.setattr(setup_check.analysis, "list_models", lambda: [])
     monkeypatch.setattr(setup_check.agent, "is_enabled", lambda: False)
     monkeypatch.setattr(setup_check.db, "get_setting", lambda key: None)
+    monkeypatch.setattr(setup_check.sandbox_broker, "get_paper_account_id", lambda: None)
 
 
 # --- the property that matters --------------------------------------------------
@@ -209,3 +215,36 @@ def test_a_satisfied_check_offers_neither(fully_configured):
 
     assert checks["agent_enabled"]["action_path"] == ""
     assert checks["agent_enabled"]["fix"] == ""
+
+
+def test_an_account_that_the_broker_does_not_have_is_not_ready(monkeypatch, fully_configured):
+    """The gap this check had until 2026-09-10.
+
+    WEBULL_ACCOUNT_ID held a real-looking number, so the page reported ready —
+    while the sandbox's account numbers had changed underneath and every pass
+    logged "this deployment will not place orders". The one page whose job is
+    to make that visible was the page saying it was fine.
+
+    "The variable is set" and "the broker has that account" are different
+    facts, the same distinction the LLM check already made.
+    """
+    monkeypatch.setattr(setup_check.sandbox_broker, "get_paper_account_id", lambda: None)
+
+    status = setup_check.status()
+    account = {c["key"]: c for c in status["checks"]}["account"]
+
+    assert account["ready"] is False
+    assert status["ready"] is False, "a deployment that can place no order is not ready"
+    assert "did not return it" in account["detail"]
+
+
+def test_a_broker_that_raises_is_reported_not_propagated(monkeypatch, fully_configured):
+    """A setup page that 500s while explaining why nothing works is worse than
+    the log line it replaces. Same rule as the LLM endpoint check."""
+    def boom():
+        raise RuntimeError("connection refused")
+
+    monkeypatch.setattr(setup_check.sandbox_broker, "get_paper_account_id", boom)
+
+    checks = {c["key"]: c for c in setup_check.status()["checks"]}
+    assert checks["account"]["ready"] is False
