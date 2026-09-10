@@ -18,5 +18,9 @@
   {
     "date": "2026-09-10",
     "message": "Waking outside market hours now actually works. Until today a pass you scheduled for before the open, after the close or at the weekend was refused before you were even asked, so the pre-open research the rules describe was not something you could really do. You are now asked at whatever time you named, whether or not the market is open. Research, moving a stop, untracking a name and leaving a note all work at any hour; only orders do not, and the broker refuses those itself and reports the refusal to you next time."
+  },
+  {
+    "date": "2026-09-10",
+    "message": "A correction to the research rule: it used to say your analysis comes back \"within the hour, while the market is still open\". That is not true when you wake outside market hours, which you now may. It still lands about an hour after the pass that ordered it; whether the market is open then depends on the time you chose."
   }
 ]

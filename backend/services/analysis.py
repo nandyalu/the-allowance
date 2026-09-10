@@ -80,8 +80,8 @@ def recent_durations(limit: int = 20) -> list[float]:
 
 
 # backends exist). propagate_ticker() acquires it internally so every caller
-# (API routes, Discord /analyze, the daily sweep, analyze-all) is bounded
-# uniformly.
+# (the agent's commissions, the watchdog's move triggers, the earnings check)
+# is bounded uniformly.
 _MAX_CONCURRENT_ANALYSES = int(os.environ.get("TRADINGAGENTS_MAX_CONCURRENT_ANALYSES", "2"))
 _analysis_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_ANALYSES)
 
@@ -335,8 +335,8 @@ def _quick_think_llm():
 async def propagate_ticker(
     ticker: str, model: str | None = None, provider: str | None = None
 ) -> tuple[dict, str]:
-    """Runs the graph — the one place every caller (API routes, Discord
-    /analyze, the daily sweep, analyze-all) goes through, building a fresh
+    """Runs the graph — the one place every caller (the agent's commissions,
+    the watchdog, the earnings check) goes through, building a fresh
     graph (see _build_graph) and bounding concurrent runs via
     _analysis_semaphore. Returns (final_state, decision); recording and
     Discord posting are the caller's job (order matters — see

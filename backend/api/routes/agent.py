@@ -2,7 +2,8 @@
 
 Read-only apart from ``/exits/{ticker}``, and that one places no trade. There
 is no route that starts a decision pass and none that places an order: the
-agent decides at 13:35 UTC and the dashboard reports what it did.
+agent decides on a schedule it names for itself, and the dashboard reports
+what it did.
 
 A ``/run`` route used to exist, to fire a pass by hand. It is gone for the same
 reason the Discord commands are. A pass run off-schedule is a real decision in

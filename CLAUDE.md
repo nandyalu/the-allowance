@@ -738,9 +738,14 @@ awaited, so a slow decision pass can never hold up the app coming up.
 
 The system message:
 
-> You are a disciplined paper-trading portfolio manager. You answer with JSON
-> only — no prose outside it. You never spend more cash than you have and never
-> sell shares you do not hold.
+> You are a disciplined portfolio manager. You answer with JSON only — no prose
+> outside it. You never spend more cash than you have and never sell shares you
+> do not hold.
+
+The opener above it, from `build_prompt`:
+
+> You manage a small account of real money. Decide what to do with it now, if
+> anything.
 
 The rules block:
 
@@ -758,10 +763,17 @@ The rules block:
   say.
 - You can also move the stop and take-profit on something you already hold,
   without buying or selling any of it. Use side `adjust` [...]
+- You can sell any position at any time, for your own reasons. You do not have
+  to wait for a stop or a target to be reached, and you do not need an analyst
+  to say Sell first. [...] A resting stop is a floor under a position, not a
+  reason to leave it alone.
 - Nothing is analysed automatically, holdings included. Use side `research`
   [...] to have something looked at, new or already tracked — it runs right
   after this pass, and there is no daily count on how many you may commission,
   only cash.
+- A stock that moves sharply while the market is open is analysed on the spot
+  whether you asked for it or not, so a volatile name may come back the same
+  day regardless.
 - You may track at most `N` tickers. To stop watching one, use side `untrack`
   [...]
 - Untracking frees a slot the same way a sell frees cash, and in the same
@@ -850,9 +862,9 @@ record would be of a strategy nobody chose.
 
 **The prompt may lie to the model. The code must never lie to itself.**
 
-There is a standing intention to stop telling the agent it is trading paper, on the grounds that an agent that knows the stakes are fake is not being asked the real question. It is not built — the prompt still opens "You manage a small paper-trading account" — but if it ever is, nothing below changes.
+**The prompt stopped telling the agent the money is fake on 2026-09-09, and nothing below changed.** It now opens "You manage a small account of real money", because an agent that knows the stakes are imaginary is not being asked the question this experiment exists to ask. That is a story told to a model. The four checks below are the code's own knowledge of what it is connected to, and the two must never be traded against each other.
 
-Three checks stand between this experiment and a machine spending real money:
+Four checks stand between this experiment and a machine spending real money:
 
 - **`_assert_sandbox()`** runs immediately before every order, not once at import, so flipping the environment mid-process cannot leave a live client armed.
 - **The `DE` account-number prefix check.** Every simulated account on the sandbox host is DE-prefixed, in both the DEM and DEL series. Widening it from `DEM` to `DE` on 2026-09-03 corrected a wrong observation — the check had been written from two accounts out of five — and was not a relaxation.
@@ -933,6 +945,8 @@ they are stated in the sections above rather than left in a dated entry.
 ### Before changing the prompt
 
 Add the entry to **[JOURNEY.md](JOURNEY.md)** first, with the date and the reason. A month of runs across an undocumented prompt revision cannot be analysed, and the temptation to reconstruct the reasoning afterwards produces a story about what we would like to have been thinking.
+
+**Then re-check "The rules, verbatim" above in the same edit.** That section quotes the prompt, and a quotation is stale the moment the original moves. By 2026-09-10 it had drifted three ways at once: it quoted a system message that still said "paper-trading" when the code had dropped the word a day earlier, it was missing the sell-any-time rule entirely, and it was missing the rule about a sharply-moving stock being analysed unasked. **A wrong quotation here is worse than no quotation**, because this file is what gets read instead of the code.
 
 ## A tool error goes to the model, not to the logs
 

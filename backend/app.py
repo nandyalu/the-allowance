@@ -48,8 +48,8 @@ async def lifespan(app: FastAPI):
     **This is the half of PUBLIC_MODE that matters most, and it is not about
     the API at all.** The published copy is a second container over the same
     database. If it also ran the scheduler there would be two agents deciding
-    on one book: two sweeps paying twice for the same research, two decision
-    passes at 13:35, and two sets of orders at the broker against one ledger.
+    on one book: two of every commissioned analysis, paying twice for the
+    same look, and two sets of orders at the broker against one ledger.
     The refused writes would not stop any of it, because none of it arrives as
     an HTTP request.
 

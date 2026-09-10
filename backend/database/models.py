@@ -334,8 +334,8 @@ class TickerStatus(SQLModel, table=True):
     A delisted symbol does not fail cleanly. yfinance keeps answering for the
     shell — AILEQ returned five bars in two months, all at $0.000001 — which
     looks to a cache like a ticker that is merely behind, so it refetches
-    forever. The daily sweep meanwhile spends minutes of GPU analyzing
-    something that no longer trades.
+    forever — and the agent can still pay $0.05 to have a company with no
+    market analysed, which is what this flag exists to prevent.
 
     ``inactive`` is set automatically once no fresh bar has appeared for
     ``STALE_AFTER_TRADING_DAYS`` (see backend/services/listings.py), and cleared

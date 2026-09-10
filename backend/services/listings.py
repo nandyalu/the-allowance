@@ -4,8 +4,10 @@ A delisted symbol does not fail cleanly. yfinance keeps answering for the
 shell: AILEQ, delisted, returned five bars across two months, every one of them
 priced at $0.000001. Nothing in that looks like an error — to a read-through
 cache it looks like a ticker that is merely behind, so it refetches every half
-hour forever, and the daily sweep spends minutes of GPU analyzing something
-that has no market.
+hour forever. It also used to be handed to the daily sweep, which spent
+minutes of GPU analysing a company with no market; the sweep is gone
+(2026-09-08) but a delisted ticker is still something the agent can pay to
+research, so detecting it still matters.
 
 The rule here is deliberately about *freshness*, not price. A live ticker
 produces a bar every session; one that has not produced a bar in a week is not

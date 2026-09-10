@@ -169,17 +169,19 @@ async def _maybe_run_agent() -> None:
     """Let the agent act on fresh intraday signals, but only when it could
     actually trade on them.
 
-    The morning sweep is deliberately *not* wired here. It runs at 11:00 UTC,
-    two and a half hours before the open, so nothing placed then could fill —
-    and deciding its nine signals one at a time would hand the budget out
-    first-come-first-served instead of comparing them against each other, which
-    is the entire job. Those go to the 13:35 batch, which decides on all of
-    them at once, on opening prices.
+    **This is the trigger path, not the agent's own schedule.** It fires when
+    the market moves under the agent rather than when the agent asked to be
+    woken, so it keeps the market-hours gate that `run_once` gave up on
+    2026-09-10: a move worth analysing at midday is worth nothing by the next
+    morning, and there is no reason to interrupt a plan the agent made for a
+    price that will have moved again by the open.
 
-    Intraday triggers are the opposite case: they arrive while the market is
-    open, and a move worth analyzing at 11:00 is worth nothing by tomorrow
-    morning. The earnings check reaches this too, but runs pre-market, so it
-    falls through the market-hours gate to the batch — which is right.
+    The morning sweep this docstring used to describe is gone (2026-09-08).
+    Analyses now arrive because the agent paid for them, one at a time, so
+    there is no batch of signals waiting to be weighed against each other.
+
+    The earnings check reaches this too and runs pre-market, so it falls
+    through the gate below and waits for the agent's own next pass.
     """
     global _last_agent_run
     if not agent.is_enabled() or not watchdog.is_us_market_hours():

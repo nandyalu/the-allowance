@@ -136,18 +136,6 @@ def test_no_client_means_no_candidates(monkeypatch):
     assert candidates.fetch_candidates() == []
 
 
-def test_the_message_says_what_the_screen_was():
-    text = candidates.format_candidates(
-        [candidates.Candidate("NVDA", "Nvidia", 217.5, 101_000_000, 2.3, "most active")]
-    )
-    assert "NVDA" in text and "101M shares" in text
-    assert "7 minutes" in text, "the cost of following one has to be stated"
-
-
-def test_an_empty_shortlist_says_so_plainly():
-    assert "already tracked" in candidates.format_candidates([])
-
-
 def test_a_pump_that_cleared_the_price_floor_is_still_filtered(screened):
     """PLAG passed every other filter at $5.81 — because the 927% pump is what
     lifted it over the $5 floor. A price floor alone cannot catch this."""

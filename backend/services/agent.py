@@ -1,8 +1,10 @@
-"""The autonomous paper-trading agent.
+"""The autonomous agent that trades the simulated book.
 
-Once a day, after the sweep has produced signals, this hands the model its own
-book — budget, cash, holdings, unrealized P/L — plus the fresh signals and
-current prices, and asks it what to trade. What to buy and how much is the
+On a schedule it sets for itself, this hands the model its own book — budget,
+cash, holdings, unrealized P/L — plus the signals it commissioned and current
+prices, and asks it what to do. Nothing is analysed on a schedule: the agent
+orders every analysis itself and pays for it (see docs/changelog.md and
+JOURNEY.md, both 2026-09-08). What to buy and how much is the
 model's decision. Python's job is narrower and non-negotiable: refuse orders
 that cannot be executed as stated, and place the rest on the simulated account.
 
@@ -791,8 +793,8 @@ def build_prompt(
             [
                 "- Nothing is analysed automatically, holdings included. To have something",
                 "  looked at, use side \"research\" with a ticker and no quantity. It runs",
-                "  right after this pass — you will be asked to decide again within the",
-                "  hour, while the market is still open. A new ticker must come from the",
+                "  right after this pass — you will be asked to decide again once it",
+                "  lands, about an hour from now. A new ticker must come from the",
                 "  candidate list above; one you already track can be re-researched as",
                 "  often as you judge it worth $0.05 — an analysis takes about twenty",
                 "  minutes, so a second look the same day is often the right call, not a",

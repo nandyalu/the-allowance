@@ -145,22 +145,3 @@ def fetch_candidates() -> list[Candidate]:
     return fresh[:MAX_PROPOSED]
 
 
-def format_candidates(candidates: list[Candidate]) -> str:
-    if not candidates:
-        return (
-            "No new candidates passed the screen today — everything liquid enough "
-            "is already tracked."
-        )
-    lines = [
-        f"**{len(candidates)} candidate(s)** worth considering "
-        f"(over ${MIN_PRICE:.0f}, over {MIN_VOLUME / 1e6:.0f}M shares traded, "
-        f"moved under {MAX_DAILY_MOVE_PCT:.0f}% today, not already tracked):",
-    ]
-    for c in candidates:
-        move = f" · {c.change_pct:+.1f}%" if c.change_pct is not None else ""
-        lines.append(
-            f"- **{c.ticker}** ${c.price:,.2f} · {c.volume_m:,.0f}M shares{move} "
-            f"· {c.source}{' · ' + c.name if c.name else ''}"
-        )
-    lines.append("Use `/track ticker:XYZ` to follow one — each adds about 7 minutes to the sweep.")
-    return "\n".join(lines)

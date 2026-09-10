@@ -51,6 +51,8 @@ Entries before 2026-09-11 were swept under these rules; anything that failed all
 
 Newest first.
 
+**2026-09-10 — the research rule no longer promises the next pass will be inside market hours.** It said an analysis comes back "within the hour, while the market is still open", which stopped being true the moment the agent could be woken at any hour — and it contradicted the same prompt's advice to wake early and have the open's research ready.
+
 **2026-09-10 — the agent is asked when the market is shut, instead of being turned away at the door.** `run_once` refused every pass outside market hours, so the pre-open research the prompt invites it to do produced nothing at all — no research, no exit adjustment, not even a note. The refusal now falls on the order, which the broker rejects and reports into the next prompt.
 
 **2026-09-09 — the model's reasoning is kept, after being generated, paid for and discarded since the day the agent started.** Roughly nine tenths of what the model produced was never recorded, so the record held every decision and none of the working-out. Passes before this date store nothing, and nothing is backfilled.
