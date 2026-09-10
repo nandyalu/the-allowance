@@ -105,7 +105,7 @@ def never_pace_the_market_data_endpoint(monkeypatch):
     """Skip the real 3-second gap between Webull market-data requests.
 
     The pace exists because Webull refused 524 of one day's calls (see
-    JOURNEY.md, 2026-09-09); it is not something any test needs to sit
+    docs/changelog.md, 2026-09-09); it is not something any test needs to sit
     through, and leaving it in added 54 seconds to a 5-second suite. The
     pacing arithmetic itself is covered directly in test_market_data_pacing.py
     with the real function and its own numbers.

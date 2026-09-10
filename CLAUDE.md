@@ -893,16 +893,42 @@ Permanent non-goals:
 - **Shorting.** A sell closes a long. Enforced in `sandbox_broker` rather than inherited from the account type, because a margin account will short where a cash account refuses.
 - **Intraday LLM analysis.** The local model is the bottleneck — an analysis takes about eighteen minutes — so alerts stay rule-based. Adding one would put a model in a loop it cannot keep up with.
 
-### The changelog lives in JOURNEY.md
+### Where a change gets written down — three files, three questions
 
-**[JOURNEY.md](JOURNEY.md) holds every dated change to the agent's behaviour, and the reason for each.** It was built for exactly that, and this file used to duplicate it.
+**This file answers "what are the rules now".** The sections above are the
+current contract: what the agent is shown, what it may ask for, and what
+Python refuses. Read it before changing the code.
 
-The split is by question, not by topic:
+**[JOURNEY.md](JOURNEY.md) answers "when did the experiment's question
+change".** Read it before changing a rule, and add to it before you do.
 
-- **This file answers "what are the rules now".** The sections above are the current contract: what the agent is shown, what it may ask for, and what Python refuses. Read it before changing the code.
-- **JOURNEY.md answers "why is it like that".** Read it before changing a rule, and add to it before you do.
+**[docs/changelog.md](docs/changelog.md) answers "what changed about the
+app".** Deployment, setup, guards, infrastructure, the site, the docs,
+dependencies.
 
-The reasons that constrain a future edit stay here, in the sections above, because they are live instructions rather than history. The total-not-each wording, the sell-to-fund ordering and the meaning of a Hold are the clearest cases: each was added after the model got that exact thing wrong, and each reads as padding to anyone who does not know that.
+**One question decides between the last two: does this change make two periods
+of the experiment non-comparable?** Yes, JOURNEY.md. No, the changelog. Three
+tests, any one of which is enough for JOURNEY.md:
+
+- **Behaviour** — it changes what the agent is shown, what it may ask for, or
+  what Python refuses.
+- **Evidence** — it changes what the record contains or means. Telemetry
+  counts. A field that is null before a date is exactly what trips up whoever
+  reads the data later, and "it is only plumbing" is how those get missed.
+- **Incident** — the agent's behaviour changed without anyone intending it, so
+  real days are contaminated. A silent bug feels like a fix and is not.
+
+**JOURNEY.md entries are a sentence or two: what changed, and why.** It grew to
+789 lines and 50 entries by 2026-09-10, of which roughly 60% were not about the
+agent at all, and a record nobody reads end to end cannot do its job. The sweep
+that fixed it left 28 entries in 108 lines. Long-form reasoning that constrains
+a future edit does not go there — it goes here, because this is the file that
+gets read before the code is changed.
+
+The total-not-each wording, the sell-to-fund ordering and the meaning of a Hold
+are the clearest cases: each was added after the model got that exact thing
+wrong, and each reads as padding to anyone who does not know that. That is why
+they are stated in the sections above rather than left in a dated entry.
 
 ### Before changing the prompt
 

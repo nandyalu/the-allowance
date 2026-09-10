@@ -56,6 +56,7 @@ It answers with a list of actions, and Python refuses what cannot be executed as
 | [The daily workflow](docs/trading-workflow.md) | How to read the experiment |
 | [Finding your edge](docs/finding-your-edge.md) | How to read the scorecard without fooling yourself |
 | [The journey](JOURNEY.md) | Every change to the agent, when, and why |
+| [Changelog](docs/changelog.md) | Everything else that changed: deployment, setup, the site, the docs |
 | [Model training](docs/model-training.md) | What it would take to make a small model reliable here |
 
 ## Quick start

@@ -149,7 +149,7 @@ def test_the_pace_narrows_on_success_and_stops_at_the_floor():
 
 
 def test_the_floor_is_three_seconds_and_the_ceiling_is_ten():
-    """Both numbers are in JOURNEY.md's 2026-09-09 entry. Changing one without
+    """Both numbers are in docs/changelog.md, 2026-09-09. Changing one without
     the other leaves the record describing a system that no longer exists."""
     assert quotes._PACE_FLOOR_SECONDS == 3.0
     assert quotes._PACE_CEILING_SECONDS == 10.0

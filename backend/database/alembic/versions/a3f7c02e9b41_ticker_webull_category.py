@@ -3,8 +3,8 @@
 ``tickerstatus.webull_category`` — "US_STOCK" or "US_ETF", whichever this
 ticker's market-data calls actually answer on. It was kept in a process-local
 dict in backend/services/quotes.py, so every restart threw it away and each
-ticker paid an extra probe request to learn it again. See JOURNEY.md's
-2026-09-09 entry: that surplus request was part of what had Webull refusing
+ticker paid an extra probe request to learn it again. See docs/changelog.md,
+2026-09-09: that surplus request was part of what had Webull refusing
 524 of one day's calls, across 22 restarts.
 
 NULL on existing rows and until a ticker first answers, which reads the same

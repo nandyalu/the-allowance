@@ -36,7 +36,7 @@ _LIST_KEYS = ("snapshots", "data", "result", "list")
 # the Market Data API Overview carries a number — so these are derived from
 # what actually failed here on 2026-09-09, when the watchdog fired about
 # twenty requests in a six-second burst every fifteen minutes and Webull
-# refused 524 of the day's calls. See JOURNEY.md for that day.
+# refused 524 of the day's calls. See docs/changelog.md, 2026-09-09.
 #
 # One pace shared by every market-data caller (quotes here, history bars in
 # backend/services/intraday.py), because they share one limit. Order history

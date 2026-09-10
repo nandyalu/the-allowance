@@ -15,6 +15,7 @@ Self-hosted docs · not financial advice
 nav = [
   { "Home" = "index.md" },
   { "The journey" = "journey.md" },
+  { "Changelog" = "changelog.md" },
   { "The two-book experiment" = "two-book-experiment.md" },
   { "The analyst experiment" = "analyst-experiment.md" },
   { "Run it yourself" = "deploying.md" },

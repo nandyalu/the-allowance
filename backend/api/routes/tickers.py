@@ -136,7 +136,7 @@ def get_ticker_events(ticker: str, days: int = 180):
 
     Bars come from ``intraday.get_chart_bars``: aggregated 1-minute detail for
     whatever recent stretch is covered (2026-09-08 onward, up to 90 days),
-    daily bars for anything older — see JOURNEY.md, 2026-09-08.
+    daily bars for anything older — see docs/changelog.md, 2026-09-08.
     """
     ticker = ticker.upper().strip()
     bars = intraday.get_chart_bars(ticker, days=days)
