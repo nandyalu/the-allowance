@@ -8,6 +8,8 @@ Entries are one or two lines: what changed, and why. Newest first.
 
 ## 2026-09-10
 
+- **Site** — The snapshot tooltip said the page is "rebuilt every 15 minutes" and it can be about twice that. Two independent 15-minute loops sit between the data and the page — the exporter writes, the publisher pushes — and they are never in phase, so a reader legitimately sees "Updated 22 minutes ago". The number was right; the explanation was not.
+
 - **Docs** — The `model-change` skill's completion-share test now says it does not transfer to a reasoning model. Two containers analysed INTC the same day: `qwen-3.8-27b` measured 31% completion, inside the band that disqualified `lfm2.5:8b`, while every price in its report was real and it read 243k prompt tokens — nearly double the local model. A thinking trace counts as completion, so the proxy mis-flags a model that reasons out loud. Check the prices against the close instead.
 
 - **Site** — The mark and the name now appear on the GitHub README and in the documentation site's header, from the SVG variants that already existed for exactly this. `logo-dark.svg`, not `logo-mono.svg`: the header renders it as an `<img>`, and `currentColor` inside an SVG loaded that way resolves to black rather than inheriting the header ink.

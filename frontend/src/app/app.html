@@ -263,7 +263,16 @@
          take a row of its own below 52rem — in the tools row it pushed 56px
          off the right of a phone. -->
     @if (snapshotAge()) {
-      <span class="snapshot-age" title="This site is a static snapshot, rebuilt every 15 minutes">
+      <!-- "up to half an hour" is the honest figure, not 15 minutes. Two
+           independent loops sit between the data and this page: the private
+           container exports every 15 minutes, and the publisher pushes
+           whatever is on disk every 15 minutes. They are never in phase, so
+           an export can wait most of a cycle before it is published, and the
+           published one stands until the cycle after that. -->
+      <span
+        class="snapshot-age"
+        title="This page is a static snapshot. The data is exported every 15 minutes and published on a separate 15-minute loop, so it can be up to about half an hour old."
+      >
         Updated {{ snapshotAge() }}
       </span>
     }
