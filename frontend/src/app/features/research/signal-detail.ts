@@ -4,13 +4,18 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { SignalDetail } from '../../core/models/api.models';
 import { SignalsService } from '../../core/services/signals.service';
 import { DecisionBadge } from '../../shared/decision-badge';
+import { parseRationale } from '../../shared/rationale';
+import { CopyButton } from '../../shared/copy-button';
 
 @Component({
   selector: 'app-signal-detail',
-  imports: [RouterLink, DecisionBadge],
+  imports: [RouterLink, DecisionBadge, CopyButton],
   templateUrl: './signal-detail.html',
 })
 export class SignalDetailPage {
+  /** The rationale's own sections. Pure, and tested in rationale.spec.ts. */
+  protected readonly rationaleParts = parseRationale;
+
   /** Why this analysis happened, in plain words.
    *
    * A signal produced because the stock just moved sharply is the analyst

@@ -4,6 +4,7 @@ import { ChangeDetectionStrategy, Component, input, signal } from '@angular/core
 import { AgentEvent, AgentEventOrder, AgentOrder } from '../../core/models/api.models';
 import { Term } from '../../shared/glossary/term';
 import { readerDateTime, readerTime } from '../../shared/market-time';
+import { CopyButton } from '../../shared/copy-button';
 
 /**
  * One decision pass: the prompt, the answer, and what it did — collapsed by
@@ -18,7 +19,7 @@ import { readerDateTime, readerTime } from '../../shared/market-time';
 @Component({
   selector: 'app-decision-card',
   standalone: true,
-  imports: [DecimalPipe, Term],
+  imports: [DecimalPipe, Term, CopyButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './decision-card.html',
 })

@@ -270,7 +270,16 @@
         <h2>Rationale</h2>
       </div>
       <div class="card-body">
-        <p class="prose">{{ s.rationale }}</p>
+        <!-- Parsed into its sections rather than printed raw. The rationale is
+             Markdown, so a paragraph showed the asterisks literally and lost
+             every section break — one blob in a reading measure, beside
+             analyst reports running to full width. -->
+        @for (part of rationaleParts(s.rationale); track $index) {
+          @if (part.label) {
+            <p class="rationale-label">{{ part.label }}</p>
+          }
+          <p class="prose">{{ part.text }}</p>
+        }
       </div>
     </section>
 
@@ -283,6 +292,9 @@
         @for (key of reportKeys(s.reports); track key) {
           <details class="report">
             <summary>{{ key }}</summary>
+            <div class="report-tools">
+              <app-copy-button [text]="s.reports[key]" [label]="key" />
+            </div>
             <pre class="report-body">{{ s.reports[key] }}</pre>
           </details>
         }

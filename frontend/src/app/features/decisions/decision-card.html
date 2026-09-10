@@ -107,7 +107,10 @@
         <!-- Null on every pass before 2026-09-09, when the model's reasoning
              was generated and discarded, so the button is absent rather than
              opening an empty panel. -->
+        <app-copy-button [text]="event().prompt" label="the prompt" />
+        <app-copy-button [text]="event().response" label="the answer" />
         @if (event().thinking) {
+          <app-copy-button [text]="event().thinking" label="the thinking" />
           <button type="button" class="btn btn-ghost btn-sm" (click)="toggle('thinking')">
             {{ isOpen('thinking') ? 'Hide' : 'Show' }} the thinking
           </button>
@@ -125,9 +128,15 @@
             answered again. The last answer is the one its orders were screened from.
           </p>
           @for (turn of event().turns ?? []; track $index) {
-            <p class="turn-label">Turn {{ $index + 1 }} of {{ event().turns?.length }} — asked</p>
+            <p class="turn-label">
+              Turn {{ $index + 1 }} of {{ event().turns?.length }} — asked
+              <app-copy-button [text]="turn.prompt" label="this turn's prompt" />
+            </p>
             <pre class="verbatim">{{ turn.prompt }}</pre>
-            <p class="turn-label">Turn {{ $index + 1 }} — answered</p>
+            <p class="turn-label">
+              Turn {{ $index + 1 }} — answered
+              <app-copy-button [text]="turn.response" label="this turn's answer" />
+            </p>
             <pre class="verbatim">{{ turn.response }}</pre>
           }
         } @else {

@@ -8,6 +8,9 @@ Entries are one or two lines: what changed, and why. Newest first.
 
 ## 2026-09-10
 
+- **Site** — The analyst rationale is parsed into its sections instead of printed raw. It is Markdown, so a reader saw literal `**Rating**:` asterisks and lost every section break — one blob in a 680px reading measure, beside analyst reports running to 1198px, which is what made it look wrapped when the reports did not. The shape is fixed and known: all 44 stored rationales, from two different models, carry Rating, Executive Summary, Investment Thesis and Time Horizon, and 38 carry Price Target.
+- **Site** — Copy buttons on every long block: each analyst report, and a decision pass's prompt, answer, thinking and each individual turn. These run to tens of thousands of characters and are exactly what a reader wants to take elsewhere. The button says "Cannot copy" rather than failing silently, because `navigator.clipboard` is absent over plain http on a LAN address — which is how this app is reached at home.
+
 - **Site** — The snapshot tooltip said the page is "rebuilt every 15 minutes" and it can be about twice that. Two independent 15-minute loops sit between the data and the page — the exporter writes, the publisher pushes — and they are never in phase, so a reader legitimately sees "Updated 22 minutes ago". The number was right; the explanation was not.
 
 - **Docs** — The `model-change` skill's completion-share test now says it does not transfer to a reasoning model. Two containers analysed INTC the same day: `qwen-3.8-27b` measured 31% completion, inside the band that disqualified `lfm2.5:8b`, while every price in its report was real and it read 243k prompt tokens — nearly double the local model. A thinking trace counts as completion, so the proxy mis-flags a model that reasons out loud. Check the prices against the close instead.
