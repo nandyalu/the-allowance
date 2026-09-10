@@ -292,10 +292,10 @@
         @for (key of reportKeys(s.reports); track key) {
           <details class="report">
             <summary>{{ key }}</summary>
-            <div class="report-tools">
+            <div class="verbatim-wrap">
               <app-copy-button [text]="s.reports[key]" [label]="key" />
+              <pre class="report-body">{{ s.reports[key] }}</pre>
             </div>
-            <pre class="report-body">{{ s.reports[key] }}</pre>
           </details>
         }
       </section>

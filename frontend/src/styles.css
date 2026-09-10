@@ -2845,10 +2845,39 @@ table {
   margin-top: 0;
 }
 
-/* The copy control above an analyst report. Right-aligned so it does not sit
-   between the section title and the text it belongs to. */
-.report-tools {
-  display: flex;
-  justify-content: flex-end;
-  padding: 0 var(--sp-4);
+/* The copy control sits in the block's own top-right corner, the way a code
+   fence carries one. Three of them in a toolbar all read "Copy" and said
+   nothing about which was which; inside the block there is no question.
+
+   It fades in on hover or keyboard focus so a wall of monospace is not
+   competing with a button, and stays visible on a touch screen, where there
+   is no hover to reveal it with. */
+.verbatim-wrap {
+  position: relative;
+}
+
+.verbatim-wrap app-copy-button {
+  position: absolute;
+  top: var(--sp-2);
+  right: var(--sp-2);
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.verbatim-wrap:hover app-copy-button,
+.verbatim-wrap:focus-within app-copy-button {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .verbatim-wrap app-copy-button {
+    opacity: 1;
+  }
+}
+
+/* The button needs a ground of its own: it sits over text. */
+.verbatim-wrap app-copy-button .btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
 }

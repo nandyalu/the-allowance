@@ -107,10 +107,7 @@
         <!-- Null on every pass before 2026-09-09, when the model's reasoning
              was generated and discarded, so the button is absent rather than
              opening an empty panel. -->
-        <app-copy-button [text]="event().prompt" label="the prompt" />
-        <app-copy-button [text]="event().response" label="the answer" />
         @if (event().thinking) {
-          <app-copy-button [text]="event().thinking" label="the thinking" />
           <button type="button" class="btn btn-ghost btn-sm" (click)="toggle('thinking')">
             {{ isOpen('thinking') ? 'Hide' : 'Show' }} the thinking
           </button>
@@ -128,30 +125,39 @@
             answered again. The last answer is the one its orders were screened from.
           </p>
           @for (turn of event().turns ?? []; track $index) {
-            <p class="turn-label">
-              Turn {{ $index + 1 }} of {{ event().turns?.length }} — asked
+            <p class="turn-label">Turn {{ $index + 1 }} of {{ event().turns?.length }} — asked</p>
+            <div class="verbatim-wrap">
               <app-copy-button [text]="turn.prompt" label="this turn's prompt" />
-            </p>
-            <pre class="verbatim">{{ turn.prompt }}</pre>
-            <p class="turn-label">
-              Turn {{ $index + 1 }} — answered
+              <pre class="verbatim">{{ turn.prompt }}</pre>
+            </div>
+            <p class="turn-label">Turn {{ $index + 1 }} — answered</p>
+            <div class="verbatim-wrap">
               <app-copy-button [text]="turn.response" label="this turn's answer" />
-            </p>
-            <pre class="verbatim">{{ turn.response }}</pre>
+              <pre class="verbatim">{{ turn.response }}</pre>
+            </div>
           }
         } @else {
-          <pre class="verbatim">{{ event().prompt }}</pre>
+          <div class="verbatim-wrap">
+            <app-copy-button [text]="event().prompt" label="the prompt" />
+            <pre class="verbatim">{{ event().prompt }}</pre>
+          </div>
         }
       }
       @if (isOpen('response')) {
-        <pre class="verbatim">{{ event().response }}</pre>
+        <div class="verbatim-wrap">
+          <app-copy-button [text]="event().response" label="the answer" />
+          <pre class="verbatim">{{ event().response }}</pre>
+        </div>
       }
       @if (isOpen('thinking')) {
         <p class="hint">
           The model's own reasoning on the way to the answer above — not a summary written
           afterwards. It is most of what the pass generated, and most of what it cost.
         </p>
-        <pre class="verbatim">{{ event().thinking }}</pre>
+        <div class="verbatim-wrap">
+          <app-copy-button [text]="event().thinking" label="the thinking" />
+          <pre class="verbatim">{{ event().thinking }}</pre>
+        </div>
       }
     } @else if (event().skipped) {
       <!-- The ordinary case, and the only one a fresh deployment ever sees:
