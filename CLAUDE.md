@@ -693,7 +693,10 @@ One prompt per decision pass, assembled by `agent.build_prompt()`. In order:
 10. **Its recent wakeups**, and whether each led to an action. Feedback rather
     than a limit: waking costs nothing, so pricing it would be an invented cost,
     and whether the agent learns to space them is a result worth having.
-11. **The rules** (below), then the JSON shape to answer in.
+11. **What it asked to read**, when the previous turn asked for an analysis.
+    Placed with the refusals, because both are replies to something the agent
+    said rather than new facts about the world.
+12. **The rules** (below), then the JSON shape to answer in.
 
 ### Telling the agent when a note was answered
 
@@ -774,6 +777,12 @@ The rules block:
 - A stock that moves sharply while the market is open is analysed on the spot
   whether you asked for it or not, so a volatile name may come back the same
   day regardless.
+- The signal lines above give a decision and its levels, not the analyst's
+  reasoning. To read that reasoning, use side `read` with a ticker, and a
+  `date` [...] Reading costs nothing — you already paid for the analysis.
+- You may read one analysis per pass, and asking uses the single follow-up
+  turn that a refused order would otherwise use. [...] Reading is not acting: a
+  pass that only read is an idle pass.
 - You may track at most `N` tickers. To stop watching one, use side `untrack`
   [...]
 - Untracking frees a slot the same way a sell frees cash, and in the same
@@ -854,6 +863,19 @@ record would be of a strategy nobody chose.
   back as a broker failure that the next prompt shows. **Do not add a
   timing gate here again** — the two gates in `run_once` are the sandbox
   boundary and the on/off switch, and neither is about the clock.
+- **A read earns one follow-up turn, and it is the same one a refusal uses.**
+  `read` never reaches `screen` — it moves no cash, no shares and no watchlist
+  slot — so it is split out in `_decide` before screening, because it changes
+  the control flow rather than the book. A second read in the same pass is
+  dropped rather than answered: silently granting a third turn is how "let me
+  look at one more thing" becomes the whole pass. The refusals from a pass that
+  read still stand and still reach the next prompt.
+- **A read resolves by ticker and an optional date, and sorts locally.**
+  `db.get_recent_signals` orders by `signal_date` alone, which is a calendar
+  date, so two analyses of one ticker on one day come back in row order —
+  asking for INTC's 2026-09-08 analysis returned the 19:06 one over the 19:18
+  one. `analysis_reader` sorts by date, then `created_at`, then id. Do not fix
+  this in the query: every other caller reads that ordering.
 - **A refused order is fed back once** and the model asked again, which is how
   it learns it may sell to fund a buy, and untrack to fund a research. The
   advice in that retry is matched to the refusal — cash advice does not help a

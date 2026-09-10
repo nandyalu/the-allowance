@@ -33,7 +33,8 @@ from pathlib import Path
 
 from backend.database import db
 from backend.services import (
-    agent_book, analysis, candidates, experiment, llm_throttle, llm_usage, market_clock,
+    agent_book, analysis, analysis_reader, candidates, experiment, llm_throttle, llm_usage,
+    market_clock,
     quotes, research, sandbox_broker, watchdog,
 )
 from backend.services.positions import get_current_price
@@ -462,6 +463,7 @@ def build_prompt(
     analysis_minutes: list[float] | None = None,
     running_analyses: dict | None = None,
     changes: list[dict] | None = None,
+    readings: list[str] | None = None,
 ) -> str:
     """Everything the model gets. Written as plain figures rather than a table
     of jargon, because the numbers are the whole input and a misread one is a
@@ -637,6 +639,13 @@ def build_prompt(
     if recent_wakeups:
         lines += ["", *recent_wakeups]
 
+    # What it asked to read on the previous turn. Placed with the refusals
+    # because both are replies to something it said, not new facts about the
+    # world, and it should read them as such.
+    reading_lines = analysis_reader.describe(readings or [])
+    if reading_lines:
+        lines += reading_lines
+
     if rejected:
         lines += [
             "",
@@ -789,6 +798,19 @@ def build_prompt(
         "  the stop gets to it, and trimming a position that has grown too large are all",
         "  yours to decide on any pass. A resting stop is a floor under a position, not",
         "  a reason to leave it alone.",
+        # The signal lines above carry the verdict and the levels, never the
+        # reasoning. A Hold that means "keep a fifth of it and defend below
+        # 102.70" reaches the agent as the same word as a flat Hold.
+        "- The signal lines above give a decision and its levels, not the analyst's",
+        "  reasoning. To read that reasoning, use side \"read\" with a ticker, and a",
+        "  \"date\" like \"2026-09-08\" if you want a particular one rather than the",
+        "  newest. Reading costs nothing — you already paid for the analysis. It is",
+        "  most useful for comparing the analysis you bought on against today's, to",
+        "  see whether the thesis still holds.",
+        "- You may read one analysis per pass, and asking uses the single follow-up",
+        "  turn that a refused order would otherwise use. So read when the reasoning",
+        "  would change what you do, not out of habit. Reading is not acting: a pass",
+        "  that only read is an idle pass.",
         *(
             [
                 "- Nothing is analysed automatically, holdings included. To have something",
@@ -1556,11 +1578,41 @@ def _decide(book, signals, prices, closed=None, regime_line=None, horizon_days=N
     # answer is the one used. getattr covers the fakes that return a plain
     # string — see _Answer.
     spend = _Spend.of(answer)
+    turns = [_turn(shown, answer)]
     reasoning, proposed = parse_decision(answer)
+
+    # **One follow-up turn per pass, and a read spends it.** The retry has been
+    # capped at one since it was built: a loop arguing with a small model would
+    # spend the market open doing it. A read costs the same and risks the same,
+    # so the two draw on one budget rather than two.
+    wants, proposed = _split_reads(proposed)
+    if wants:
+        readings = [analysis_reader.read(w.get("ticker"), w.get("date")) for w in wants[:1]]
+        log.info("Re-asking after a read of %s", wants[0].get("ticker"))
+        shown = build_prompt(book, signals, prices, closed=closed,
+                             regime_line=regime_line, horizon_days=horizon_days, menu=menu,
+                             price=research.get_price(),
+                             watchlist=watchlist, max_watchlist=_max_watchlist(),
+                             failures=recent_failures, unsettled_cash=unsettled,
+                             wakeups=recent_wakeups, analysis_minutes=analysis_minutes,
+                             running_analyses=running_analyses, changes=recent_changes,
+                             readings=readings)
+        answer = _ask(shown)
+        spend = spend + _Spend.of(answer)
+        turns.append(_turn(shown, answer))
+        read_reasoning, proposed = parse_decision(answer)
+        reasoning = read_reasoning or reasoning
+        # A second read in the same pass is dropped rather than answered. The
+        # budget is spent, and silently granting a third turn is how "let me
+        # look at one more thing" becomes the whole pass.
+        _, proposed = _split_reads(proposed)
+
     accepted, rejected = screen(proposed, book, prices, by_ticker, menu_tickers)
-    if not rejected:
+    # No retry when a read already used the follow-up. The refusals still reach
+    # the agent — they are stored and shown in the next pass's prompt.
+    if not rejected or wants:
         return Decision(reasoning, accepted, rejected, shown, answer,
-                        getattr(answer, "thinking", None), *spend)
+                        getattr(answer, "thinking", None), *spend, turns=turns)
 
     log.info("Re-asking after %d refused order(s): %s", len(rejected), [r.why for r in rejected])
     shown = build_prompt(book, signals, prices, rejected=rejected, closed=closed,
@@ -1572,15 +1624,49 @@ def _decide(book, signals, prices, closed=None, regime_line=None, horizon_days=N
                          running_analyses=running_analyses, changes=recent_changes)
     retry_answer = _ask(shown)
     spend = spend + _Spend.of(retry_answer)
+    turns.append(_turn(shown, retry_answer))
     retry_reasoning, retry_proposed = parse_decision(retry_answer)
+    # A read on the retry is dropped: the follow-up is already spent.
+    _, retry_proposed = _split_reads(retry_proposed)
     if not retry_proposed:
         # A retry that proposes nothing is a decision to stand pat; keep the
         # first answer's accepted orders rather than discarding them.
         return Decision(reasoning, accepted, rejected, shown, retry_answer,
-                        getattr(retry_answer, "thinking", None), *spend)
+                        getattr(retry_answer, "thinking", None), *spend, turns=turns)
     retry_accepted, retry_rejected = screen(retry_proposed, book, prices, by_ticker, menu_tickers)
     return Decision(retry_reasoning or reasoning, retry_accepted, retry_rejected,
-                    shown, retry_answer, getattr(retry_answer, "thinking", None), *spend)
+                    shown, retry_answer, getattr(retry_answer, "thinking", None), *spend,
+                    turns=turns)
+
+
+def _turn(prompt: str, answer) -> dict:
+    """One turn of a pass, for the record.
+
+    Kept verbatim, like `Decision.prompt` and `Decision.response`, because
+    behaviour here is mostly prompt and a turn nobody wrote down cannot be
+    read back later.
+    """
+    return {
+        "prompt": str(prompt or ""),
+        "response": str(answer or ""),
+        "thinking": getattr(answer, "thinking", None),
+    }
+
+
+def _split_reads(orders: list[dict]) -> tuple[list[dict], list[dict]]:
+    """(reads, everything else).
+
+    A read is not an order: it moves no cash, no shares and no watchlist slot,
+    so it never reaches `screen`. It is pulled out here because it changes the
+    control flow — it earns another turn — rather than the book.
+    """
+    reads, rest = [], []
+    for order in orders or []:
+        if str(order.get("side", "")).lower().strip() == "read":
+            reads.append(order)
+        else:
+            rest.append(order)
+    return reads, rest
 
 
 class _Spend(NamedTuple):
@@ -1639,6 +1725,17 @@ class Decision:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     seconds: float = 0.0
+    # Every turn of the pass, oldest first, as {"prompt", "response",
+    # "thinking"}. `prompt` and `response` above stay the LAST turn, because
+    # that is the one the accepted orders were screened from and every existing
+    # reader expects it.
+    #
+    # **A pass has had more than one turn since retries existed, and only the
+    # last was recorded.** The first prompt was overwritten, so a two-turn pass
+    # was published as though it were one — against a site whose claim is that
+    # every prompt the agent saw is on the record. Rare while a retry was the
+    # only second turn; normal now that the agent can ask to read.
+    turns: list[dict] = field(default_factory=list)
 
     def __iter__(self):
         """Unpack like the tuple this replaced, so existing callers and tests
@@ -1668,6 +1765,9 @@ class AgentRun:
     # is minutes of async work, so this is the handoff to the scheduler, which
     # dispatches them and then asks the agent again when they land.
     research_now: list[str] = field(default_factory=list)
+    # Every turn of the pass, oldest first. `prompt`/`response` stay the last
+    # turn — see Decision.turns for why that split is deliberate.
+    turns: list[dict] = field(default_factory=list)
     # When the agent asked to be woken, and when it actually will be. They
     # differ when it aimed outside market hours. None means it asked for
     # nothing — the scheduler falls back, and the agent is not credited with
@@ -2373,7 +2473,8 @@ def run_once() -> AgentRun:
                    thinking=getattr(decision, "thinking", None),
                    prompt_tokens=getattr(decision, "prompt_tokens", 0),
                    completion_tokens=getattr(decision, "completion_tokens", 0),
-                   seconds=getattr(decision, "seconds", 0.0))
+                   seconds=getattr(decision, "seconds", 0.0),
+                   turns=list(getattr(decision, "turns", []) or []))
     # What it asked for and what it got, kept apart. `next_wakeup` is the
     # clamped, usable instant the scheduler acts on; `wakeup_asked` is the raw
     # request. When they differ the agent aimed somewhere the market is shut,
@@ -2617,6 +2718,9 @@ def _record_run(run: "AgentRun") -> None:
             prompt=run.prompt or None,
             response=run.response or None,
             thinking=run.thinking or None,
+            # JSON, or NULL for a pass with nothing to add beyond the single
+            # turn already in prompt/response.
+            turns=json.dumps(run.turns) if len(run.turns or []) > 1 else None,
             # NULL, not 0, when nothing reported them — a zero would read as a
             # free call. Same rule as Signal's own usage columns.
             prompt_tokens=run.prompt_tokens or None,

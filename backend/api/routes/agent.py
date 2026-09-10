@@ -162,6 +162,7 @@ def _shape_events(rows: list) -> list[AgentEventOut]:
             prompt=row.prompt,
             response=row.response,
             thinking=row.thinking,
+            turns=json.loads(row.turns) if row.turns else [],
             prompt_tokens=row.prompt_tokens,
             completion_tokens=row.completion_tokens,
             seconds=row.seconds,

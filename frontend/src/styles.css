@@ -2779,3 +2779,14 @@ table {
   text-decoration: underline;
   white-space: nowrap;
 }
+
+/* Turn markers inside a multi-turn decision transcript. Quiet: they are
+   scaffolding around the verbatim text, not content of their own. */
+.turn-label {
+  margin: var(--sp-3) 0 var(--sp-1);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}

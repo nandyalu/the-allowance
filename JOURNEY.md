@@ -51,6 +51,14 @@ Entries before 2026-09-11 were swept under these rules; anything that failed all
 
 Newest first.
 
+**2026-09-10 — the agent can ask to read an analysis it has already paid for, and the record now holds every turn of a pass.** It saw one line per signal — the decision and the levels — and never the reasoning, so a Hold that meant "keep a fifth of the position and defend it below 102.70" reached it as the same word as a flat Hold. Naming a date lets it compare the analysis it bought on against today's.
+
+**Reading is free and does not count as acting.** The $0.05 charge exists so that choosing what to *study* costs something; re-reading what it already bought teaches nothing about that choice. And a pass that only read is still an idle pass, for the same reason a pass that only left a note is — otherwise "let me look at the analysis" becomes this model's way of not deciding.
+
+**One extra turn per pass, shared with the refusal retry.** The retry has been capped at one since it was built, on the reasoning that a loop arguing with a small model would spend the market open doing it. A read is the same cost with the same risk, so the two draw on one budget: read, or retry, not both.
+
+**`agentrun` records every turn, which it did not before.** A refusal retry rebuilt the prompt and overwrote the first one, so a two-turn pass was published as though it were one — and this site's claim is that every prompt the agent saw is on the record, word for word. That was a small gap while retries were rare; a read-then-decide pass makes it the normal shape. Passes before today hold one turn, which is what they were.
+
 **2026-09-10 — the research rule no longer promises the next pass will be inside market hours.** It said an analysis comes back "within the hour, while the market is still open", which stopped being true the moment the agent could be woken at any hour — and it contradicted the same prompt's advice to wake early and have the open's research ready.
 
 **2026-09-10 — the agent is asked when the market is shut, instead of being turned away at the door.** `run_once` refused every pass outside market hours, so the pre-open research the prompt invites it to do produced nothing at all — no research, no exit adjustment, not even a note. The refusal now falls on the order, which the broker rejects and reports into the next prompt.

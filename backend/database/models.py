@@ -226,6 +226,20 @@ class AgentRun(SQLModel, table=True):
     # have all since moved.
     prompt: str | None = None
     response: str | None = None
+    # **Every turn of the pass, as JSON**, oldest first: a list of
+    # {"prompt", "response", "thinking"}. ``prompt`` and ``response`` above
+    # remain the LAST turn, which is the one the accepted orders were screened
+    # from and what every existing reader expects.
+    #
+    # A pass has had more than one turn since the refusal retry was built, and
+    # only the last was ever kept — the retry rebuilt the prompt and overwrote
+    # the first, so a two-turn pass was published as though it were one. That
+    # was rare while a retry was the only second turn. It stopped being rare on
+    # 2026-09-10, when the agent gained a way to ask to read an analysis.
+    #
+    # NULL for every run before that date, which is honest: those passes held
+    # one turn, and it is in ``prompt``/``response``.
+    turns: str | None = None
     # Every order the pass produced, as JSON: side, ticker, quantity, reason.
     # ``placed`` counts them and ``agenttrade`` holds the buys and sells, but
     # an untrack, a research and an adjust move no shares and leave no row

@@ -2018,3 +2018,113 @@ def test_an_adjust_records_the_ticker_without_its_separator():
     assert orders[0]["ticker"] == "AVGO"
     # The message itself is the record and keeps its original wording.
     assert orders[0]["reason"] == "AVGO: moved stop to $345.00."
+
+
+# --- reading an analysis mid-pass -------------------------------------------
+
+
+def _read_then(orders_json: str):
+    """A fake model that asks to read INTC, then answers with `orders_json`."""
+    replies = iter([
+        '{"reasoning": "let me look", "orders": [{"side": "read", "ticker": "INTC"}]}',
+        orders_json,
+    ])
+    return replies
+
+
+def test_a_read_earns_a_second_turn_and_the_analysis_reaches_the_prompt(monkeypatch):
+    """The whole feature. The agent sees a decision and its levels, never the
+    reasoning, so a Hold that means 'keep a fifth and defend below 102.70'
+    arrives as the same word as a flat Hold."""
+    asked = []
+    replies = _read_then('{"reasoning": "now I know", "orders": []}')
+
+    monkeypatch.setattr(agent, "_ask", lambda p: asked.append(p) or next(replies))
+    monkeypatch.setattr(agent.analysis_reader, "read", lambda t, on=None: f"{t} said Hold: defend below 102.70")
+
+    reasoning, accepted, rejected = agent._decide(_book(cash=250.0), [], {})
+
+    assert len(asked) == 2, "a read should earn exactly one follow-up turn"
+    assert "What you asked to read" in asked[1]
+    assert "defend below 102.70" in asked[1]
+    assert reasoning == "now I know", "the answer after reading is the one that counts"
+
+
+def test_a_read_is_not_an_order(monkeypatch):
+    """It moves no cash, no shares and no watchlist slot, so it never reaches
+    `screen` and never appears among the accepted orders."""
+    replies = _read_then('{"reasoning": "done", "orders": []}')
+    monkeypatch.setattr(agent, "_ask", lambda p: next(replies))
+    monkeypatch.setattr(agent.analysis_reader, "read", lambda t, on=None: "text")
+
+    _, accepted, rejected = agent._decide(_book(cash=250.0), [], {})
+
+    assert accepted == [], "reading is not acting"
+    assert rejected == []
+
+
+def test_only_one_read_per_pass(monkeypatch):
+    """A second read is dropped rather than answered. Silently granting a third
+    turn is how 'let me look at one more thing' becomes the whole pass."""
+    asked = []
+    replies = iter([
+        '{"reasoning": "one", "orders": [{"side": "read", "ticker": "INTC"}]}',
+        '{"reasoning": "two", "orders": [{"side": "read", "ticker": "AVGO"}]}',
+    ])
+    monkeypatch.setattr(agent, "_ask", lambda p: asked.append(p) or next(replies))
+    monkeypatch.setattr(agent.analysis_reader, "read", lambda t, on=None: "text")
+
+    _, accepted, _ = agent._decide(_book(cash=250.0), [], {})
+
+    assert len(asked) == 2, "the second read must not earn a third turn"
+    assert accepted == []
+
+
+def test_a_read_spends_the_same_budget_as_the_refusal_retry(monkeypatch):
+    """One follow-up per pass, shared. The retry has been capped at one since
+    it was built — a loop arguing with a small model would spend the market
+    open doing it — and a read costs the same and risks the same."""
+    asked = []
+    replies = iter([
+        '{"reasoning": "look first", "orders": [{"side": "read", "ticker": "AAA"}]}',
+        # Unaffordable: this would earn a retry if the budget were untouched.
+        '{"reasoning": "greedy", "orders": [{"ticker": "AAA", "side": "buy", "quantity": 99}]}',
+    ])
+    monkeypatch.setattr(agent, "_ask", lambda p: asked.append(p) or next(replies))
+    monkeypatch.setattr(agent.analysis_reader, "read", lambda t, on=None: "text")
+
+    _, accepted, rejected = agent._decide(_book(cash=250.0), [], {"AAA": 100.0})
+
+    assert len(asked) == 2, "a read plus a retry would be three model calls in one pass"
+    assert accepted == []
+    assert rejected, "the refusal still stands and reaches the next prompt"
+
+
+def test_every_turn_of_a_pass_is_recorded(monkeypatch):
+    """The record's half of this change.
+
+    A retry rebuilt the prompt and overwrote the first, so a two-turn pass was
+    published as though it were one — against a site whose claim is that every
+    prompt the agent saw is on the record, word for word.
+    """
+    replies = _read_then('{"reasoning": "done", "orders": []}')
+    monkeypatch.setattr(agent, "_ask", lambda p: next(replies))
+    monkeypatch.setattr(agent.analysis_reader, "read", lambda t, on=None: "the analysis")
+
+    decision = agent._decide(_book(cash=250.0), [], {})
+
+    assert len(decision.turns) == 2
+    assert "let me look" in decision.turns[0]["response"]
+    assert "What you asked to read" in decision.turns[1]["prompt"]
+    assert decision.response == decision.turns[-1]["response"], (
+        "prompt/response stay the last turn, which is what the orders were screened from"
+    )
+
+
+def test_a_single_turn_pass_still_records_that_one_turn(monkeypatch):
+    monkeypatch.setattr(agent, "_ask", lambda p: '{"reasoning": "fine", "orders": []}')
+
+    decision = agent._decide(_book(cash=250.0), [], {})
+
+    assert len(decision.turns) == 1
+    assert decision.turns[0]["prompt"] == decision.prompt

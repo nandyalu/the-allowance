@@ -424,6 +424,13 @@ export interface AgentEventOrder {
  * `prompt` and `response` are the point of the Events page: the counts and the
  * one-line reasoning describe a decision, and these two are it. Both are null
  * for passes before 2026-09-01 and cannot be backfilled. */
+/** One exchange inside a decision pass. */
+export interface DecisionTurn {
+  prompt: string;
+  response: string;
+  thinking: string | null;
+}
+
 export interface AgentEvent {
   id: number;
   ran_at: string;
@@ -440,6 +447,18 @@ export interface AgentEvent {
    * pass generated, and most of what it cost. Null on every pass before
    * 2026-09-09, when it was generated and discarded. */
   thinking: string | null;
+  /** Every turn of the pass, oldest first. `prompt`/`response` above are the
+   * LAST turn — the one the orders were screened from — so a reader that only
+   * knows those still sees the decision it should.
+   *
+   * Empty on a single-turn pass and on every pass before 2026-09-10. A pass
+   * has more than one turn when the agent asked to read an analysis, or when
+   * a refused order earned it a correction.
+   *
+   * Optional because a published snapshot file written before 2026-09-10 has
+   * no such key at all, and the static site serves whatever the last export
+   * left on disk. */
+  turns?: DecisionTurn[];
   /** What the pass cost the model — the provider's own counts and the wall
    * clock of the calls. Null on a pass that never asked, and on every pass
    * before 2026-09-09, when nothing counted them. */

@@ -22,5 +22,9 @@
   {
     "date": "2026-09-10",
     "message": "A correction to the research rule: it used to say your analysis comes back \"within the hour, while the market is still open\". That is not true when you wake outside market hours, which you now may. It still lands about an hour after the pass that ordered it; whether the market is open then depends on the time you chose."
+  },
+  {
+    "date": "2026-09-10",
+    "message": "You can now read an analyst's reasoning, not just its verdict and levels. Use side \"read\" with a ticker, and a \"date\" like \"2026-09-08\" for a particular one rather than the newest — useful for comparing the analysis you bought on against today's, to see whether the thesis still holds. Reading is free: you already paid for that analysis. One read per pass, and it uses the same single follow-up turn a refused order would, so read when the reasoning would change what you do. Reading is not acting."
   }
 ]

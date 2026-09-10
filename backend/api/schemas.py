@@ -508,6 +508,13 @@ class AgentEventOut(Schema):
     # The model's own reasoning behind the answer. NULL before 2026-09-09,
     # when it was generated and discarded.
     thinking: str | None = None
+    # Every turn of the pass, oldest first. ``prompt``/``response`` above are
+    # the LAST turn — the one the accepted orders were screened from — so a
+    # reader that only knows those still sees the decision it should.
+    #
+    # Empty on a pass with one turn, and on every pass before 2026-09-10:
+    # those held one turn and it is already above.
+    turns: list[dict] = []
     # What the pass cost the model: the provider's own counts and the wall
     # clock of the calls. NULL on a pass that never asked, and on one from
     # before 2026-09-09, when nothing counted them.

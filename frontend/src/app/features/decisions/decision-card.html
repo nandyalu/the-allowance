@@ -114,7 +114,25 @@
         }
       </div>
       @if (isOpen('prompt')) {
-        <pre class="verbatim">{{ event().prompt }}</pre>
+        <!-- A pass has more than one turn when the agent asked to read an
+             analysis, or when a refused order earned it a correction. Before
+             2026-09-10 only the last was kept, so a two-turn pass was
+             published as though it were one. -->
+        @if ((event().turns?.length ?? 0) > 1) {
+          <p class="hint">
+            This pass took {{ event().turns?.length }} turns. The agent answered, was given
+            something back — an analysis it asked to read, or the reason an order was refused — and
+            answered again. The last answer is the one its orders were screened from.
+          </p>
+          @for (turn of event().turns ?? []; track $index) {
+            <p class="turn-label">Turn {{ $index + 1 }} of {{ event().turns?.length }} — asked</p>
+            <pre class="verbatim">{{ turn.prompt }}</pre>
+            <p class="turn-label">Turn {{ $index + 1 }} — answered</p>
+            <pre class="verbatim">{{ turn.response }}</pre>
+          }
+        } @else {
+          <pre class="verbatim">{{ event().prompt }}</pre>
+        }
       }
       @if (isOpen('response')) {
         <pre class="verbatim">{{ event().response }}</pre>

@@ -370,4 +370,65 @@ describe('DecisionsView', () => {
     await fixture.whenStable();
     expect(el.textContent).toContain('august pass');
   });
+
+  describe('a pass that took more than one turn', () => {
+    /** Before 2026-09-10 only the last turn was kept: a refusal retry rebuilt
+     * the prompt and overwrote the first, so a two-turn pass was published as
+     * though it were one — against a site whose claim is that every prompt the
+     * agent saw is on the record, word for word. */
+    const twoTurns = () =>
+      event({
+        turns: [
+          {
+            prompt: 'the first prompt',
+            response: '{"orders":[{"side":"read","ticker":"INTC"}]}',
+            thinking: null,
+          },
+          {
+            prompt: 'the second prompt, carrying the analysis',
+            response: '{"orders":[]}',
+            thinking: null,
+          },
+        ],
+      });
+
+    it('shows every turn, not only the last', async () => {
+      service.eventsByMonth['2026-09'] = [twoTurns()];
+      const fixture = TestBed.createComponent(DecisionsView);
+      await fixture.whenStable();
+      const el = fixture.nativeElement as HTMLElement;
+
+      clickButtonContaining(el, 'Show the prompt');
+      await fixture.whenStable();
+
+      expect(el.textContent).toContain('the first prompt');
+      expect(el.textContent).toContain('the second prompt, carrying the analysis');
+      expect(el.textContent).toContain('2 turns');
+    });
+
+    it('shows a single prompt when the pass had one turn', async () => {
+      service.eventsByMonth['2026-09'] = [event({ turns: [] })];
+      const fixture = TestBed.createComponent(DecisionsView);
+      await fixture.whenStable();
+      const el = fixture.nativeElement as HTMLElement;
+
+      clickButtonContaining(el, 'Show the prompt');
+      await fixture.whenStable();
+
+      expect(el.textContent).not.toContain('turns.');
+      expect(el.querySelector('.verbatim')?.textContent).toContain('You manage a $10,000 account');
+    });
+
+    it('survives a snapshot written before turns existed', async () => {
+      // The static site serves whatever the last export left on disk, and a
+      // file from before 2026-09-10 has no `turns` key at all.
+      const old = event();
+      delete (old as { turns?: unknown }).turns;
+      service.eventsByMonth['2026-09'] = [old];
+
+      const el = await render();
+
+      expect(el.textContent).toContain('Reducing overhead');
+    });
+  });
 });
