@@ -1009,23 +1009,55 @@ def test_the_normal_reset_still_refuses_a_held_account(monkeypatch):
     assert cleared == []
 
 
-def test_a_run_outside_market_hours_is_refused_before_the_model_is_asked(monkeypatch):
-    """Orders go in at market, and the venue refuses those outside the session.
-    Deciding first spends a couple of minutes of GPU producing orders that
-    cannot be placed — which is exactly what happened at 17:48 ET: it decided
-    to buy 6 VT and the broker returned FIXGW_NOT_READY_MARKET."""
+def test_a_run_outside_market_hours_still_asks_the_model(monkeypatch):
+    """A closed market stops orders, not thinking.
+
+    **This test asserted the opposite until 2026-09-10**, on the reasoning that
+    deciding outside the session spends GPU producing orders the venue will
+    refuse. True of orders, and it was applied to the whole pass — so a wakeup
+    the agent had scheduled for 6am to commission the analyses it wanted ready
+    for the open produced nothing at all, while its own rules told it that was
+    a good use of a wakeup.
+
+    Research, moving a stop, untracking a name and leaving a note all work at
+    any hour. The order is what the broker refuses, and it reports that refusal
+    into the next prompt.
+    """
     asked = []
     monkeypatch.setattr(agent.quotes, "is_sandbox", lambda: True)
-    monkeypatch.setattr(agent.watchdog, "is_us_market_hours", lambda: True)
     monkeypatch.setattr(agent, "is_enabled", lambda: True)
     monkeypatch.setattr(agent.watchdog, "is_us_market_hours", lambda: False)
     monkeypatch.setattr(agent, "_decide", lambda *a, **kw: asked.append(1) or ("", [], []))
+    # The pass now runs to the end, so everything between the old gate and the
+    # model has to be stubbed. That it reaches these at all is the point of
+    # the test — the conftest broker guard caught the live call when it did.
+    monkeypatch.setattr(agent, "settle_pending", lambda: [])
+    monkeypatch.setattr(agent, "_recent_signals", lambda: [])
+    monkeypatch.setattr(agent.db, "get_recent_signals", lambda limit=200: [])
+    monkeypatch.setattr(agent.db, "get_watchlist", lambda: [])
+    monkeypatch.setattr(agent.agent_book, "closed_trades", lambda decisions=None: [])
+    monkeypatch.setattr(agent, "_price_map", lambda _t: {})
+    monkeypatch.setattr(agent.agent_book, "build_book", lambda price_lookup=None: _book(cash=500.0))
 
     run = agent.run_once()
 
-    assert asked == [], "the model must not be asked when nothing could be placed"
-    assert "market is closed" in run.skipped
-    assert "13:35" in run.skipped, "it should say when it will run on its own"
+    assert asked == [1], "the agent must be asked at the time it chose"
+    assert not run.skipped, f"the pass was refused instead of run: {run.skipped!r}"
+
+
+def test_the_sandbox_and_the_switch_still_refuse_a_pass(monkeypatch):
+    """The two gates that remain, so removing the market-hours one did not
+    quietly take these with it. Neither is about timing: one is the boundary
+    that keeps this a simulation, the other is a person having switched the
+    experiment off."""
+    monkeypatch.setattr(agent.watchdog, "is_us_market_hours", lambda: True)
+    monkeypatch.setattr(agent, "is_enabled", lambda: True)
+    monkeypatch.setattr(agent.quotes, "is_sandbox", lambda: False)
+    assert "sandbox" in agent.run_once().skipped
+
+    monkeypatch.setattr(agent.quotes, "is_sandbox", lambda: True)
+    monkeypatch.setattr(agent, "is_enabled", lambda: False)
+    assert "switched off" in agent.run_once().skipped
 
 
 # --- conviction ----------------------------------------------------------------

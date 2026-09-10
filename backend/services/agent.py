@@ -2314,19 +2314,26 @@ def run_once() -> AgentRun:
         return _skip("Webull is not in sandbox mode — refusing to trade.")
     if not is_enabled():
         return _skip("The trading agent is switched off.")
-    # Checked before the model is asked, not after. Orders are placed at market,
-    # and the venue refuses those outside the session
-    # (CAN_NOT_TRADING_FOR_FIXGW_NOT_READY_MARKET), so deciding first spends a
-    # couple of minutes of GPU to produce orders that cannot be placed — and a
-    # decision made on a closed market's prices is stale by the next open
-    # anyway, which is why the 13:35 batch re-decides rather than replaying it.
-    if not watchdog.is_us_market_hours():
-        return _skip(
-            "The US market is closed, so no order could be placed. "
-            "The agent decides automatically each weekday at 13:35 UTC, "
-            "five minutes after the open."
-        )
-
+    # **A closed market is not a reason to skip the pass (2026-09-10).** There
+    # was a gate here refusing every pass while the session was shut, and it
+    # was answering the wrong question. It exists because the venue rejects an
+    # order outside the session
+    # (CAN_NOT_TRADING_FOR_FIXGW_NOT_READY_MARKET) — an argument about orders,
+    # not about whether the agent may think.
+    #
+    # Research, moving a stop, untracking a name, leaving a note and choosing
+    # the next wakeup all work at any hour, and the prompt has invited the
+    # agent to use them since 2026-09-05: "Waking early to commission the
+    # analyses you want ready for the open is a good use of this." The gate
+    # made that untrue, silently — a 6am wakeup the agent had chosen produced
+    # nothing at all.
+    #
+    # Nothing is lost by removing it. `market_clock.describe()` is the first
+    # line of every prompt and says whether the market is open, closed for the
+    # day, or closed for the weekend, so the agent knows. An order sent anyway
+    # is refused by sandbox_broker and recorded as a broker failure, and the
+    # last five failures appear in the next prompt — which is the loop the
+    # rules already describe.
     settled = settle_pending()
     if settled:
         log.info("Settled %d pending order(s) before deciding", len(settled))

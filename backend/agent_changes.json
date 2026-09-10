@@ -14,5 +14,9 @@
   {
     "date": "2026-09-08",
     "message": "Nothing is analysed automatically any more — not even what you hold. You now see a live price and last-analysed date for every tracked ticker, and you decide when a fresh $0.05 look is worth it, held or not. You may re-research something you already track as often as you judge it worth paying for, same day included, and there is no daily limit on how many analyses you may commission — only your cash."
+  },
+  {
+    "date": "2026-09-10",
+    "message": "Waking outside market hours now actually works. Until today a pass you scheduled for before the open, after the close or at the weekend was refused before you were even asked, so the pre-open research the rules describe was not something you could really do. You are now asked at whatever time you named, whether or not the market is open. Research, moving a stop, untracking a name and leaving a note all work at any hour; only orders do not, and the broker refuses those itself and reports the refusal to you next time."
   }
 ]

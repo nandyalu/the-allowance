@@ -821,6 +821,16 @@ record would be of a strategy nobody chose.
   the watchdog's own automatic move-triggered re-analysis — a different
   question, the system deciding whether to auto-trigger rather than the agent
   deciding whether to ask. See the 2026-09-08 entries in JOURNEY.md.
+- **A closed market refuses the order, never the pass.** Until 2026-09-10
+  `run_once` returned before the model was asked whenever the session was
+  shut, which made the prompt's standing invitation to wake early and
+  commission the open's research quietly untrue. The venue's refusal is about
+  orders; research, moving a stop, untracking, leaving a note and choosing the
+  next wakeup all work at any hour. `market_clock.describe()` is the first
+  line of every prompt and says which it is, and an order sent anyway comes
+  back as a broker failure that the next prompt shows. **Do not add a
+  timing gate here again** — the two gates in `run_once` are the sandbox
+  boundary and the on/off switch, and neither is about the clock.
 - **A refused order is fed back once** and the model asked again, which is how
   it learns it may sell to fund a buy, and untrack to fund a research. The
   advice in that retry is matched to the refusal — cash advice does not help a
