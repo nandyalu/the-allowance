@@ -109,7 +109,7 @@ export class ExperimentView {
    * Grouped by the market's day rather than UTC, because the agent picks its
    * own times now and may wake in the evening. A pass at 8pm in New York is
    * past midnight UTC, and a UTC grouping would file it under the next
-   * trading day — beside a morning sweep that had not happened when it ran.
+   * trading day — a day whose prices it never saw.
    */
   private marketDay(d: Date): string {
     return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(d);

@@ -792,7 +792,18 @@ The rules block:
   weekend — research works then, orders do not.
 - If you name no time, you are next asked at the following open. That is a
   fallback, not a plan.
+- The thesis behind a trade usually runs about `N` days [...]
 - Before answering, add up what your buys cost and check it against your cash.
+
+Two more appear only in the state that produces them, which is why they are
+easy to miss when reading the code:
+
+- **When the balance is zero or negative**, the budget rule is replaced by "You
+  have no money to spend. The balance is `$X`." rather than quoting a negative
+  figure as a spending limit.
+- **When a conviction floor is set** (it defaults to off): "You may only open a
+  new position on a signal that meets the conviction floor [...] Selling is
+  never blocked this way."
 
 Three of those exist because of a specific failure and should not be trimmed as
 padding: the total-not-each wording, the sell-to-fund ordering, and the
