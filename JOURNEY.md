@@ -51,6 +51,14 @@ Entries before 2026-09-11 were swept under these rules; anything that failed all
 
 Newest first.
 
+**2026-09-10 — the agent reported the timing contradiction itself, twice, and it was still half there after the first fix.** Two notes, at 09:30 and 15:53: "the top text says about 2 minutes, while the rules say about 20 minutes and that it lands about an hour later". The first pass at this removed "about an hour" and left "about twenty minutes" — a second hardcoded figure in the same rule. **One duration is stated in the prompt now, the measured one**, and the JSON example was still showing `"45 minutes"` under an instruction to use an ISO datetime.
+
+**This is the note action doing exactly what it exists for.** The agent could not act on the contradiction and said so instead, precisely enough to fix — including the part the first fix missed.
+
+**A Hold now points at the read tool.** It is the decision that says least: it can mean the analyst saw nothing, or saw a case for holding a position and none for adding to it, and the word is the same either way. The agent spent a long stretch of one pass reasoning about which it had, which is the question a read answers.
+
+**What a day on a hosted model costs, measured.** `qwen-3.8-27b` on Cerebras ran 6 analyses and 12 decision passes for **$2.54** — 1.38M prompt and 714k completion tokens, 34% completion because the model reasons out loud. That is **$0.40 an analysis** against roughly $0.04 of marginal electricity for the same six on the local pool, which is ten times, and it is a real figure rather than a projection.
+
 **2026-09-10 — six fixes read straight out of one thinking block, two of them real bugs the model spotted before we did.** A Cerebras pass at 3:59 PM spent most of its reasoning on things the prompt should have told it, and said so in enough detail to fix each one.
 
 **The tracked table was showing a stale analysis, and the agent noticed.** It read two INTC rows for the same day — one at $106.24, one at $100.44 — and asked "the tracked table might not be updated to latest?". It was right: that row came from `get_recent_signals(limit=1)`, which orders by `signal_date` alone, so with two analyses on one day it returned whichever row came first. The agent was being shown a price the stock had already moved 5.5% away from.

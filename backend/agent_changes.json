@@ -30,5 +30,9 @@
   {
     "date": "2026-09-10",
     "message": "Four things you were working out for yourself are now stated. Analysis rows carry a time, not just a date, so two looks at one ticker on one day can be told apart, and they are listed newest first. \"Price now\" says the moment it was read. The tracked-ticker table was showing an older analysis of the same day than the signals table above it — that was a bug and it is fixed. And for next_wakeup, give an ISO datetime like \"2026-09-11T09:00\" (Eastern unless you add an offset); the prompt now tells you what time you will be asked at if you name none. Other formats still work. One more: research you order runs after the pass and you are asked again automatically when it lands, so you do not need a wakeup for it."
+  },
+  {
+    "date": "2026-09-10",
+    "message": "Your two notes about the timing contradiction were right, and the first fix only got half of it — the rules still said an analysis takes about twenty minutes while the line above gave the measured figure. There is one duration in the prompt now, the measured one, and it is the only thing that says how long an analysis takes. The JSON example was also still showing \"45 minutes\" for next_wakeup under a rule asking for an ISO datetime; it shows an ISO datetime now. And a Hold is the decision that says least — it can mean the analyst saw nothing, or saw a case for holding and none for adding. If a Hold is the difference between acting and not, use side \"read\" on it rather than reasoning about which it was."
   }
 ]

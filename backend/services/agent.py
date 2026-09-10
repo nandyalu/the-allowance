@@ -852,9 +852,10 @@ def build_prompt(
                 "  lands** — you do not need to set a wakeup for it, and the timing line",
                 "  above says how long one takes here. A new ticker must come from the",
                 "  candidate list above; one you already track can be re-researched as",
-                "  often as you judge it worth $0.05 — an analysis takes about twenty",
-                "  minutes, so a second look the same day is often the right call, not a",
-                "  wasteful one. Choosing what to study is the only way anything changes,",
+                "  often as you judge it worth $0.05. A second look the same day is",
+                "  often the right call, not a wasteful one — the timing line above says",
+                "  how long one takes, and it is the only figure that does.",
+                "  Choosing what to study is the only way anything changes,",
                 "  and paying to study something you then ignore is how the money leaves",
                 "  this account.",
                 "- A stock that moves sharply while the market is open is analysed on the",
@@ -899,7 +900,7 @@ def build_prompt(
         'see, a tool you do not have, a rule that contradicts another — say so '
         'with side "note". It reaches the people who maintain you. Nothing '
         'acts on it automatically, so it is a message and not a request.',
-        '{"reasoning": "one or two sentences", "next_wakeup": "45 minutes", "orders": '
+        '{"reasoning": "one or two sentences", "next_wakeup": "2026-09-11T09:00", "orders": '
         '[{"ticker": "AAPL", "side": "buy", "quantity": 2, "reason": "why"},',
         ' {"ticker": "MSFT", "side": "adjust", "stop": 410.5, "reason": "why"},',
         # Shown only where there is something to research — a menu of new
@@ -1373,6 +1374,16 @@ _FIXED_RULES = [
     "Sell means they expect it to fall, so exit it if you hold it. Hold means "
     "no action is recommended — if you do not own it, a Hold is not a reason "
     "to buy it.",
+    # The one word that hides the most. A Hold on 2026-09-10 meant "keep a
+    # fifth of the position and defend it below 102.70", and reached the agent
+    # as the same word as a flat Hold. It spent a long stretch of one pass
+    # reasoning about whether a particular Hold was worth acting on, which is
+    # exactly the question a read answers.
+    "- **A Hold is the decision that says least.** It can mean the analyst saw "
+    "nothing, or that they saw a case worth holding a position for and no case "
+    "for adding to it. The word is the same either way. If a Hold is the "
+    "difference between acting and not, read it rather than reasoning about "
+    "what it might have meant.",
     "- You can also move the stop and take-profit on something you already "
     "hold, without buying or selling any of it. Use side \"adjust\" with a "
     "\"stop\" or a \"target\" price, or both. The stop must be below the current "

@@ -2258,3 +2258,37 @@ def test_the_research_rule_and_the_measured_timing_agree():
 
     assert "about an hour from now" not in prompt
     assert "asked again automatically" in prompt, "it must say it need not schedule the return"
+
+
+def test_only_one_analysis_duration_is_ever_stated():
+    """The agent reported this as a note, twice: the prompt gave two figures
+    for how long an analysis takes and one for when the answer lands.
+
+    The first fix removed "about an hour" and left "about twenty minutes" in
+    the same rule, which is the "20 minutes" its second note named. The
+    measured line is the only figure allowed to say this.
+    """
+    prompt = agent.SYSTEM_PROMPT + "\n" + agent.build_prompt(
+        _book(), [], {}, price=0.05, analysis_minutes=[2.0, 3.0, 2.5],
+    )
+
+    for invented in ("about twenty minutes", "about an hour", "about eighteen minutes"):
+        assert invented not in prompt, f"a hardcoded duration is back: {invented!r}"
+    assert "An analysis takes about 2 minutes" in prompt
+
+
+def test_the_json_example_shows_the_format_the_rules_ask_for():
+    """It showed "45 minutes" under an instruction to give an ISO datetime.
+    A model copies the example."""
+    prompt = agent.build_prompt(_book(), [], {})
+
+    example = next(l for l in prompt.splitlines() if '"reasoning": "one or two' in l)
+
+    assert "T09:00" in example, f"the example contradicts the rule: {example}"
+
+
+def test_a_hold_points_at_the_read_tool():
+    """A Hold can mean the analyst saw nothing, or saw a case for holding and
+    none for adding. The agent spent a long stretch of one pass reasoning about
+    which it had."""
+    assert "read it rather than reasoning about" in agent.SYSTEM_PROMPT
