@@ -42,6 +42,10 @@ Per-run usage is recorded on every `Signal` — `prompt_tokens`, `completion_tok
 | A working model | **14–17%** |
 | `lfm2.5:8b` | **34–35%** |
 
+**This tell does not transfer to a reasoning model, and assuming it does will reject a good one.** A model that emits a thinking trace counts it as completion. `qwen-3.8-27b` measured **31%** on INTC on 2026-09-10 — inside the range that disqualified `lfm2.5:8b` — while every price in its report was real: 106.24 against the true price, a 50-SMA at 99.62, RSI 63.36, 140.3M shares. Its prompt tokens were **243k**, nearly double the local model's, so it read more rather than less.
+
+**When the model reasons, fall back to the verdict**: check the prices against the close. The share is a proxy, and a proxy calibrated on models that do not think out loud.
+
 **Structured-output failures.** One per run is normal for the Gemma e4b family and both builds do it, recovering by retrying as free text. Four per run disqualified `llama3.2:3b` and `phi4-mini`. Treat a count above one, or a failure that does not recover, as a regression.
 
 ## The candidate-menu test
