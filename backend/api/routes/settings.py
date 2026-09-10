@@ -12,7 +12,9 @@ positions and Python only refuses what cannot be executed as stated.
 from fastapi import APIRouter, HTTPException
 
 from backend.database import db
-from backend.services import agent, agent_book, analysis, publish, quotes, watchdog
+from backend.services import (
+    agent, agent_book, analysis, experiment, publish, quotes, watchdog,
+)
 from backend.api.schemas import SettingsOut, SettingsPatchIn
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -21,6 +23,7 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 def _current_settings() -> SettingsOut:
     alerts = watchdog.load_config()
     return SettingsOut(
+        experiment_start=experiment.start_date(),
         horizon=analysis.get_horizon(),
         llm_model=analysis.get_model(),
         llm_model_choices=analysis.model_choices(),

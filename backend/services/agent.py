@@ -31,8 +31,8 @@ from pathlib import Path
 
 from backend.database import db
 from backend.services import (
-    agent_book, analysis, candidates, llm_throttle, llm_usage, market_clock, quotes,
-    research, sandbox_broker, watchdog,
+    agent_book, analysis, candidates, experiment, llm_throttle, llm_usage, market_clock,
+    quotes, research, sandbox_broker, watchdog,
 )
 from backend.services.positions import get_current_price
 from backend.services.sizing import get_atr, suggest_position
@@ -71,6 +71,12 @@ def is_enabled() -> bool:
 
 def set_enabled(enabled: bool) -> None:
     db.set_setting(_ENABLED_SETTING_KEY, "on" if enabled else "off")
+    # Switching the agent on for the first time is what starts the experiment
+    # — the agent is off until a person turns it on, so this is a deliberate
+    # act on a date they chose. Write-once, so pausing and resuming later does
+    # not restart the clock. See backend/services/experiment.py.
+    if enabled:
+        experiment.record_start()
 
 
 def _threshold(key: str) -> float:

@@ -1,5 +1,5 @@
 """Backfill 1-minute intraday bars for every tracked ticker, back to the
-experiment's start (backend/services/intraday.EXPERIMENT_START).
+experiment's start (backend/services/intraday.experiment_start()).
 
 Run once, by hand, after the intraday cache first ships — the watchdog's own
 15-minute tick (backend/services/watchdog.py) keeps it current from then on,
@@ -40,7 +40,7 @@ def main() -> int:
 
     since = (
         datetime.datetime.combine(args.since, datetime.time.min)
-        if args.since else intraday.EXPERIMENT_START
+        if args.since else intraday.experiment_start()
     )
 
     total = 0

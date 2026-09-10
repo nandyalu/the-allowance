@@ -288,7 +288,13 @@ class RegimeOut(OrmModel):
     emoji: str
 
 
+
 class SettingsOut(Schema):
+    # The day THIS deployment's experiment began. Served rather than compiled
+    # into the frontend so a second container does not announce itself as
+    # being on day eight of the first one's run — see
+    # backend/services/experiment.py.
+    experiment_start: date
     horizon: str  # "swing" | "position"
     llm_model: str  # the LLM every analysis runs on
     # Everything the LLM endpoint currently serves. Empty when it couldn't be

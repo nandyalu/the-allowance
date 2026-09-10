@@ -37,6 +37,14 @@ The entries below record what changed in the agent's behaviour and the reason fo
 
 Newest first.
 
+**2026-09-10 — the experiment dates itself from the moment the agent is switched on, and the minute-bar backfill follows it.** Yesterday's fix made the start date an env var, which fixed the second container and left every future self-hoster to discover the variable. It is now stamped automatically: the first time `set_enabled(True)` runs with no date recorded, today's date is written to `BotSetting` and never overwritten.
+
+**"First enabled" is the right event and not an approximation of one.** The agent is off until somebody turns it on — `is_enabled()` reads a stored setting that starts absent — so switching it on is a deliberate act by a person, on a date they chose. That is already what this file says the start date means: the experiment starts when the agent can act, which is why 2026-09-02 and not the 1st.
+
+**Resolution is stored, then env, then the constant**, so nothing that already runs moves. The live deployment has no stored date and no variable set, so it still answers 2026-09-02 — the date its own site has shown since the first day.
+
+**The minute-bar backfill reads the same date, and leaving it out yesterday was a mistake.** It was a hardcoded 2026-09-02, described as a floor rather than a claim, and that reasoning was wrong in one direction I did not think about: a person starting this experiment four months from now would have backfilled four months of 1-minute bars to reach a date belonging to somebody else's run. Not a cosmetic cost — that is thousands of requests against a rate-limited endpoint before the agent has made a single decision.
+
 **2026-09-09 — the model dropdown works on a metered endpoint, and the reason it did not is worth writing down.** The second container logged `Couldn't list models from https://api.cerebras.ai/v1/models: HTTP Error 403: Forbidden`, so its settings page fell back to a free-text field. Two separate faults, and only one of them was the obvious one.
 
 **The call sent no key.** The local pool needs none and has never been asked for one, so `list_models` was written without an `Authorization` header at all. Every metered provider wants one. That took a minute to find and a minute to fix.
@@ -44,6 +52,16 @@ Newest first.
 **The call also looked like a robot, and that is the one that costs an hour.** With the key added it still returned 403. The key was not the problem: the *identical* request returns 403 sent as urllib and 200 sent as curl. Cerebras sits behind Cloudflare, urllib announces itself as `Python-urllib/3.14`, and Cloudflare refuses that outright. Nothing in the error says so — a 403 with a valid key reads as an authentication problem, and every instinct sends you back to the key.
 
 Recorded because the next person to point this app at a new vendor will hit it, and because it is a general fact about this codebase rather than about Cerebras: anything here that reaches a third-party endpoint through `urllib` rather than through an SDK is one Cloudflare rule away from the same dead end.
+
+**2026-09-09 — a deployment states its own start date, instead of every container claiming the first one's.** The second container came up and its home page said "day 8". The start date was a constant compiled into the frontend bundle, so every image built from this repo carries the same one however long that particular deployment has been running.
+
+**Configurable, defaulting to the date that is already published.** `EXPERIMENT_START_DATE` rides in the existing `/api/settings` payload the frontend already fetches, and falls back to 2026-09-02 when unset — so the original deployment's site does not move and no page it has ever served changes.
+
+**Deriving it from the data was the other option and was rejected, for one specific reason.** The earliest recorded pass in the live database is **2026-09-03**, while the published start is the **2nd** — and that gap is deliberate: the container was deployed and switched on that day, and the agent's first pass simply fell after hours. Deriving the date would have silently overwritten a decision somebody made on purpose, and replaced "when this experiment began" with "when it first happened to produce a row". The first is a claim about the experiment; the second is an artifact of scheduling.
+
+**The constant is now the fallback rather than the source**, and `experiment.ts`'s own note — "one constant, because a start date written in four places drifts" — is rewritten rather than left contradicting the code. The reasoning it carried is still true and still worth keeping: there is still exactly one place a reader looks, it just resolves through a setting first.
+
+**`intraday.EXPERIMENT_START` is deliberately left alone.** It looks like the same date and is a different fact: a floor for how far back to backfill 1-minute bars, not a claim about when anything began. A new container fetching a few extra days of bars once costs a request and confuses nobody.
 
 **2026-09-09 — the deployment must now name the account it is allowed to trade, and refuses to trade at all until it does.** A fourth guard beside the three that keep this a simulation, and the first one whose value a person supplies rather than the code asserting it. `WEBULL_ACCOUNT_ID` names one account; the resolver refuses every account that is not that one, and refuses everything when the variable is empty or unset.
 

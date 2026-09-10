@@ -232,6 +232,10 @@ export interface Regime {
 }
 
 export interface Settings {
+  /** The day THIS deployment's experiment began, "YYYY-MM-DD". Served rather
+   * than compiled in, so a second container does not announce itself as being
+   * on day eight of the first one's run. See shared/experiment.ts. */
+  experiment_start: string;
   horizon: string; // "swing" | "position"
   llm_model: string;
   /** Everything the LLM endpoint serves. Empty when it couldn't be reached —

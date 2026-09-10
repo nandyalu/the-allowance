@@ -26,12 +26,24 @@ from backend.services import quotes
 
 log = logging.getLogger("trading-experiment.intraday")
 
-# The experiment's first trading day (see CLAUDE.md). Nothing happened before
-# this, so a backfill never needs to reach further back. Naive, treated as
-# UTC — the same convention every timestamp in this module and in
-# IntradayBar.timestamp follows, matching how the rest of this app reads a
-# naive datetime out of SQLite as UTC rather than local time.
-EXPERIMENT_START = datetime.datetime(2026, 9, 2)
+def experiment_start() -> datetime.datetime:
+    """This deployment's own first trading day. Nothing happened before it, so
+    a backfill never needs to reach further back.
+
+    **Read per call, not a constant.** It was
+    ``datetime.datetime(2026, 9, 2)`` until 2026-09-10, which is this
+    deployment's start and nobody else's: a self-hoster starting four months
+    from now would have paged back four months of 1-minute bars to reach a
+    date belonging to another person's experiment — thousands of requests
+    against a rate-limited endpoint before the agent had decided anything.
+
+    Naive, treated as UTC — the same convention every timestamp in this module
+    and in IntradayBar.timestamp follows, matching how the rest of this app
+    reads a naive datetime out of SQLite as UTC rather than local time.
+    """
+    from backend.services import experiment
+
+    return datetime.datetime.combine(experiment.start_date(), datetime.time.min)
 
 # Minutes of bars to ask for on a routine top-up (see capture_recent, called
 # from the watchdog's 15-minute tick). Wider than the actual gap on purpose:
@@ -143,7 +155,7 @@ def fetch_bars(
     return None
 
 
-def backfill(ticker: str, since: datetime.datetime = EXPERIMENT_START) -> int:
+def backfill(ticker: str, since: datetime.datetime | None = None) -> int:
     """Page backward from now to ``since``, upserting every bar found.
 
     Safe to re-run: upserting replaces on conflict, so backfilling an
@@ -152,7 +164,10 @@ def backfill(ticker: str, since: datetime.datetime = EXPERIMENT_START) -> int:
     already reaches back six trading days, and ``since`` defaults to the
     experiment's own start.
     """
-    since = _as_utc(since).replace(tzinfo=None)
+    # Resolved here rather than as a default argument: a default is evaluated
+    # once at import, which would freeze whatever the date was when the module
+    # first loaded.
+    since = _as_utc(since or experiment_start()).replace(tzinfo=None)
     total = 0
     end_time = None
     previous_oldest = None
@@ -203,7 +218,7 @@ def capture_recent(ticker: str) -> int:
 
 # How far back "fine" (aggregated intraday) resolution reaches at most,
 # regardless of how much history has actually been captured. Chosen in the
-# same conversation as EXPERIMENT_START: daily bars beyond this are not a
+# same conversation as experiment_start(): daily bars beyond this are not a
 # missing-data fallback, they are the deliberate choice for a horizon this
 # app already treats as 1-2 weeks — nobody needs 5-minute candles from four
 # months ago to reason about a swing trade.
@@ -264,7 +279,7 @@ def get_chart_bars(ticker: str, days: int) -> list[ChartBar]:
     within ``_MAX_FINE_DAYS``, daily bars for everything older than that.
 
     Reads whatever intraday coverage already exists rather than assuming
-    ``EXPERIMENT_START`` — a ticker only recently added has less of it, and a
+    ``experiment_start()`` — a ticker only recently added has less of it, and a
     request for history before the experiment began has none at all, in
     which case this degrades to exactly what ``bars.get_bars`` already
     returned before any of this existed.
