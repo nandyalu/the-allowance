@@ -175,3 +175,43 @@ def test_building_a_graph_does_not_mutate_the_shared_default_config(settings_sto
     analysis._build_graph()
 
     assert analysis.DEFAULT_CONFIG["deep_think_llm"] == analysis.DEFAULT_MODEL
+
+
+# --- listing models from a metered endpoint -------------------------------------
+
+
+def test_the_model_list_is_authenticated_and_not_sent_as_urllib(monkeypatch):
+    """Two separate things break a metered provider's /models call, and both
+    were found on 2026-09-09 pointing at Cerebras.
+
+    The key is the obvious one: ollama needs none, so none was ever sent. The
+    User-Agent is the one that costs an hour — urllib's default is
+    "Python-urllib/3.x" and Cloudflare, which fronts Cerebras, refuses it
+    outright. The identical request returned 403 as urllib and 200 as curl,
+    with nothing wrong with the key at all.
+    """
+    from tradingagents.default_config import DEFAULT_CONFIG
+    from backend.services import analysis
+
+    monkeypatch.setitem(DEFAULT_CONFIG, "llm_provider", "openai_compatible")
+    monkeypatch.setenv("OPENAI_COMPATIBLE_API_KEY", "csk-secret")
+
+    headers = analysis._models_auth_header()
+
+    assert headers["Authorization"] == "Bearer csk-secret"
+    assert "urllib" not in headers["User-Agent"].lower()
+
+
+def test_a_keyless_endpoint_still_identifies_itself(monkeypatch):
+    """ollama needs no key, and must not be sent an empty Bearer — but it
+    still gets a User-Agent, since nothing is gained by looking like urllib."""
+    from tradingagents.default_config import DEFAULT_CONFIG
+    from backend.services import analysis
+
+    monkeypatch.setitem(DEFAULT_CONFIG, "llm_provider", "ollama")
+    monkeypatch.delenv("OPENAI_COMPATIBLE_API_KEY", raising=False)
+
+    headers = analysis._models_auth_header()
+
+    assert "Authorization" not in headers
+    assert headers["User-Agent"]

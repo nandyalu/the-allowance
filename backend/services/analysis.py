@@ -209,6 +209,33 @@ def _models_endpoint() -> str | None:
     return f"{base_url.rstrip('/')}/models" if base_url else None
 
 
+def _models_auth_header() -> dict[str, str]:
+    """``Authorization`` for the ``/models`` call, or nothing for a keyless
+    endpoint.
+
+    The local pool needs no key and got none, which is why this was missing
+    until 2026-09-09: the first metered provider to be pointed at — Cerebras —
+    answered ``403 Forbidden`` and the settings page fell back to a free-text
+    field instead of a dropdown. The key env var per provider comes from the
+    same registry the client itself reads, so the list is authenticated the
+    way the analysis will be.
+    """
+    from tradingagents.llm_clients.api_key_env import get_api_key_env
+
+    provider = str(DEFAULT_CONFIG.get("llm_provider") or "").lower()
+    env_name = get_api_key_env(provider)
+    key = (os.environ.get(env_name) or "").strip() if env_name else ""
+    # A real User-Agent, because urllib's default is "Python-urllib/3.x" and
+    # Cloudflare refuses it outright — measured 2026-09-09 against Cerebras,
+    # which sits behind it: the identical request with a key returns 403 as
+    # urllib and 200 as curl. Nothing about the key was wrong, and chasing the
+    # key is where an hour goes.
+    headers = {"User-Agent": "the-allowance/1.0"}
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+    return headers
+
+
 def list_models(*, force: bool = False) -> list[str]:
     """Every model the configured LLM endpoint currently serves, sorted.
 
@@ -225,7 +252,8 @@ def list_models(*, force: bool = False) -> list[str]:
     if url is None:
         return []
     try:
-        with urllib.request.urlopen(url, timeout=_MODEL_LIST_TIMEOUT_SECONDS) as response:
+        request = urllib.request.Request(url, headers=_models_auth_header())
+        with urllib.request.urlopen(request, timeout=_MODEL_LIST_TIMEOUT_SECONDS) as response:
             payload = json.load(response)
         models = sorted(
             str(entry["id"])

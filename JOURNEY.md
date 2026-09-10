@@ -37,6 +37,14 @@ The entries below record what changed in the agent's behaviour and the reason fo
 
 Newest first.
 
+**2026-09-09 — the model dropdown works on a metered endpoint, and the reason it did not is worth writing down.** The second container logged `Couldn't list models from https://api.cerebras.ai/v1/models: HTTP Error 403: Forbidden`, so its settings page fell back to a free-text field. Two separate faults, and only one of them was the obvious one.
+
+**The call sent no key.** The local pool needs none and has never been asked for one, so `list_models` was written without an `Authorization` header at all. Every metered provider wants one. That took a minute to find and a minute to fix.
+
+**The call also looked like a robot, and that is the one that costs an hour.** With the key added it still returned 403. The key was not the problem: the *identical* request returns 403 sent as urllib and 200 sent as curl. Cerebras sits behind Cloudflare, urllib announces itself as `Python-urllib/3.14`, and Cloudflare refuses that outright. Nothing in the error says so — a 403 with a valid key reads as an authentication problem, and every instinct sends you back to the key.
+
+Recorded because the next person to point this app at a new vendor will hit it, and because it is a general fact about this codebase rather than about Cerebras: anything here that reaches a third-party endpoint through `urllib` rather than through an SDK is one Cloudflare rule away from the same dead end.
+
 **2026-09-09 — the model's reasoning is kept, after being generated, paid for and thrown away since the day the agent started.** Found by replaying a real stored prompt to check the new token counts: the pass reported 1,850 output tokens against a 758-character answer. That is 0.4 characters per token, which is not possible for returned text — so roughly nine tenths of what the model produced was going somewhere other than the record.
 
 **It was reasoning, and the endpoint had been returning it all along.** Ollama's `/v1/chat/completions` puts it in a `reasoning` field beside the content — 5,336 characters of it against a 356-character answer on the replay that settled this. `ChatOpenAI` discards it deliberately, and says so: it "targets the official OpenAI specification" and does not extract "non-standard response fields added by third-party providers". There is no flag to keep it.
