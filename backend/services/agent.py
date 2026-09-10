@@ -256,9 +256,9 @@ def describe_analysis_timing(
         ordered = sorted(durations)
         median = ordered[len(ordered) // 2]
         lines.append(
-            f"An analysis takes about {median:.0f} minutes — recently between "
-            f"{ordered[0]:.0f} and {ordered[-1]:.0f}. Research you order now will not "
-            "be ready before then, so do not ask to be woken sooner expecting it."
+            f"An analysis takes about {median:.0f} minutes here — recently between "
+            f"{ordered[0]:.0f} and {ordered[-1]:.0f}. You are asked again automatically "
+            "when one you ordered lands, so a wakeup you set is for something else."
         )
     if running:
         here = (now or datetime.datetime.now(datetime.timezone.utc))
@@ -498,6 +498,13 @@ def build_prompt(
         # agent chooses its own next wakeup — a question about the time it
         # could not answer while nothing in the prompt said what time it was.
         market_clock.describe(),
+        # **The fallback, as a real instant.** The rules say "the following
+        # open" and the agent had to work out which day that was — at 3:59 PM
+        # on a Thursday it reasoned through the weekend to get there. Stating
+        # it costs one line and removes the arithmetic.
+        f"If you name no next_wakeup, you will next be asked at "
+        f"{market_clock.next_open().astimezone(market_clock.US_MARKET_TZ).strftime('%Y-%m-%dT%H:%M')} "
+        "Eastern, the following open. Name a time if you want a different one.",
         "",
     ]
     if regime_line:
@@ -505,6 +512,9 @@ def build_prompt(
     recent_changes = describe_recent_changes(changes or [])
     if recent_changes:
         lines += [*recent_changes, ""]
+    # Every "price now" in this prompt was read at the same moment, and the
+    # agent asked which moment that was. Named once, used by both tables.
+    as_of = market_clock.now_et().strftime("%Y-%m-%d %-I:%M %p ET")
     lines += [
         f"Your account is ${book.budget:,.2f} in total. That is all you will ever have — "
         "there is no more money coming.",
@@ -580,15 +590,27 @@ def build_prompt(
         # once, and the header says outright what "now" and "at analysis"
         # mean, because those two are the pair that was being confused.
         lines += [
-            "Recent analyst signals. **Price now** is today's live price; **At analysis** is "
-            "what it cost when the analyst looked. **Entry/Stop/Target** are the analyst's "
-            "proposed levels, not orders that exist.",
+            f"Recent analyst signals. **Price now** is the price as of {as_of}; "
+            "**At analysis** is what it cost when the analyst looked. **Entry/Stop/Target** "
+            "are the analyst's proposed levels, not orders that exist. Rows are newest "
+            "first, and **Analysed** carries the time because a ticker can be analysed "
+            "more than once in a day.",
             "",
-            "| Ticker | Analysed | Decision | Price now | At analysis | Entry | Stop | Target |"
+            "| Ticker | Analysed (ET) | Decision | Price now | At analysis | Entry | Stop | Target |"
             " Chance | R:R | You could buy | Why it ran |",
             "|---|---|---|---|---|---|---|---|---|---|---|---|",
         ]
-        for s in signals:
+        # Newest first, and sorted here rather than relied upon: the query
+        # orders by `signal_date`, a calendar date, so two analyses of one
+        # ticker on one day arrive in row order. The header says the rows are
+        # newest first, and a header that lies is worse than no header.
+        for s in sorted(
+            signals,
+            key=lambda x: (str(x.signal_date)[:10],
+                           str(getattr(x, "created_at", "") or ""),
+                           getattr(x, "id", 0) or 0),
+            reverse=True,
+        ):
             # Also kept off `price`, for the same reason as the holdings loop.
             live = prices.get(s.ticker)
             money = lambda v: f"${v:,.2f}" if v else "—"
@@ -620,7 +642,7 @@ def build_prompt(
             # rather than the model, the same way the Decision unpacking does.
             because = _TRIGGER_PHRASE.get(getattr(s, "trigger", None) or "", "").strip() or "—"
             lines.append(
-                f"| {s.ticker} | {s.signal_date} | {s.decision} | {price_text} | "
+                f"| {s.ticker} | {_analysed_at(s)} | {s.decision} | {price_text} | "
                 f"{money(getattr(s, 'price_at_signal', None))} | {money(s.entry_price)} | "
                 f"{money(s.stop_loss)} | {money(s.price_target)} | {chance} | {rr} | "
                 f"{afford_text} | {because} |"
@@ -719,21 +741,38 @@ def build_prompt(
         lines += [
             "",
             f"You track {len(watchlist)} of at most {max_watchlist} tickers. **Moved since** "
-            "is today's price against the price when it was last analysed — a large move on a "
-            "stale analysis is the signal that a fresh look may be worth paying for.",
+            f"is the price as of {as_of} against the price at the most recent analysis of that "
+            "ticker — a large move on a stale analysis is the signal that a fresh look may be "
+            "worth paying for.",
             "",
-            "| Ticker | Held? | Price now | Last analysed | Price then | Moved since | It said |",
+            "| Ticker | Held? | Price now | Last analysed (ET) | Price then | Moved since | It said |",
             "|---|---|---|---|---|---|---|",
         ]
         for ticker in sorted(watchlist):
             live = prices.get(ticker)
             price_text = f"${live:,.2f}" if live is not None else "unavailable"
             status = "held" if ticker in held_tickers else "watched"
-            recent = db.get_recent_signals(ticker, limit=1)
+            # **Newest by time, not by date.** `get_recent_signals` orders by
+            # `signal_date`, a calendar date, so two analyses of one ticker on
+            # one day come back in row order — and this row showed INTC at
+            # $106.24 while the signals table above showed a later one at
+            # $100.44, a 5.5% move. The agent read both and asked which was
+            # current. Same sort as analysis_reader._newest_first, and local
+            # for the same reason: every other caller reads that ordering.
+            recent = sorted(
+                db.get_recent_signals(ticker, limit=20),
+                # getattr throughout: several tests pass signal-shaped
+                # stand-ins rather than the model, the same way the Decision
+                # unpacking and the trigger phrase already do.
+                key=lambda x: (str(x.signal_date)[:10],
+                               str(getattr(x, "created_at", "") or ""),
+                               getattr(x, "id", 0) or 0),
+                reverse=True,
+            )[:1]
             when = then = move = said = "never"
             if recent and recent[0].price_at_signal:
                 last = recent[0]
-                when = str(last.signal_date)
+                when = _analysed_at(last)
                 then = f"${last.price_at_signal:,.2f}"
                 said = last.decision
                 move = "—"
@@ -809,8 +848,9 @@ def build_prompt(
             [
                 "- Nothing is analysed automatically, holdings included. To have something",
                 "  looked at, use side \"research\" with a ticker and no quantity. It runs",
-                "  right after this pass — you will be asked to decide again once it",
-                "  lands, about an hour from now. A new ticker must come from the",
+                "  right after this pass. **You are asked again automatically once it",
+                "  lands** — you do not need to set a wakeup for it, and the timing line",
+                "  above says how long one takes here. A new ticker must come from the",
                 "  candidate list above; one you already track can be re-researched as",
                 "  often as you judge it worth $0.05 — an analysis takes about twenty",
                 "  minutes, so a second look the same day is often the right call, not a",
@@ -879,6 +919,29 @@ def build_prompt(
         "Use an empty list for orders if you want to hold everything.",
     ]
     return "\n".join(_unwrapped(lines))
+
+
+def _analysed_at(signal) -> str:
+    """When an analysis ran, to the minute, in Eastern.
+
+    **The date alone could not order two analyses of one ticker on one day**,
+    and on 2026-09-10 that is exactly what the agent hit: two INTC rows, one at
+    $106.24 and one at $100.44, both dated 2026-09-10, and no way to tell which
+    was current. It spent a paragraph guessing.
+
+    `created_at` is UTC and null on rows written before 2026-09-08, which fall
+    back to the bare date rather than inventing a time.
+    """
+    created = getattr(signal, "created_at", None)
+    if not created:
+        return str(signal.signal_date)[:10]
+    try:
+        when = created if isinstance(created, datetime.datetime) else datetime.datetime.fromisoformat(str(created))
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=datetime.timezone.utc)
+        return market_clock.now_et(when).strftime("%Y-%m-%d %H:%M")
+    except (ValueError, TypeError):
+        return str(signal.signal_date)[:10]
 
 
 def _unwrapped(lines: list[str]) -> list[str]:
@@ -977,6 +1040,24 @@ def parse_wakeup(text: str, now: datetime.datetime | None = None) -> datetime.da
     text_value = re.sub(r"\s*\b(et|est|edt|eastern|us/eastern|america/new_york)\b\.?$", "", text_value)
     text_value = text_value.strip().rstrip(".")
 
+    # **An ISO datetime, which is what the rules now ask for.** Everything
+    # below is kept because a model still writes "45 minutes" sometimes and
+    # dropping a usable answer costs a whole pass — but one unambiguous form
+    # in the instruction is what stopped the agent converting 9 AM into "1021
+    # minutes" by hand to avoid guessing how a bare clock time would be read.
+    #
+    # A naive value is Eastern, because that is the clock the prompt speaks in
+    # and the rules say so. An offset or a trailing Z is honoured as given.
+    iso = re.match(r"^\d{4}-\d{2}-\d{2}[ t]\d{2}:\d{2}(:\d{2})?([+-]\d{2}:?\d{2}|z)?$", text_value)
+    if iso:
+        try:
+            when = datetime.datetime.fromisoformat(text_value.replace("z", "+00:00").replace(" ", "T"))
+        except ValueError:
+            return None
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=here.tzinfo)
+        return when.astimezone(here.tzinfo)
+
     # A clock time — "14:30", "2:30 pm". Checked before the minutes form,
     # because "1430" and "14:30" mean very different things and only the
     # colon tells them apart.
@@ -990,7 +1071,16 @@ def parse_wakeup(text: str, now: datetime.datetime | None = None) -> datetime.da
             hour = 0
         if hour > 23 or minute > 59:
             return None
-        return here.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        at = here.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        # **The next occurrence, not this morning's.** A clock time already
+        # past resolved into the past, and `clamp_wakeup` then pulled it to
+        # the floor — so "09:00" asked at 3:59 PM woke the agent at 4:04 PM
+        # rather than the next morning, and the record showed it choosing
+        # that. A model reasoning at the close spotted the ambiguity and spent
+        # a paragraph converting 9 AM into "1021 minutes" by hand to dodge it.
+        if at <= here:
+            at += datetime.timedelta(days=1)
+        return at
 
     minutes = re.match(r"^(\d+(?:\.\d+)?)\s*(m|min|mins|minute|minutes)?$", text_value)
     if minutes:
@@ -1309,9 +1399,11 @@ _FIXED_RULES = [
     "acting: a pass that only read is an idle pass.",
     "- Doing nothing is a valid answer, and often the right one.",
     "- You decide when you are next asked, and nothing else does. Put "
-    "\"next_wakeup\" beside your orders: a number of minutes from now, or a "
-    "clock time in Eastern like \"14:30\". The minimum is 5 minutes and the "
-    "maximum is 4 days.",
+    "\"next_wakeup\" beside your orders as an ISO datetime — "
+    "\"2026-09-11T09:00\" is Eastern, and a trailing Z or an offset is read as "
+    "given. One format, so there is nothing to work out: no minute arithmetic, "
+    "and no question of which day a bare clock time means. The minimum is 5 "
+    "minutes from now and the maximum is 4 days.",
     "- You may ask for any time, including before the open, after the close and "
     "at the weekend. Research and planning work at any hour. Orders do not — "
     "the broker rejects one outright while the market is shut, and you will "

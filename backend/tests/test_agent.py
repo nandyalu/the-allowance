@@ -2162,3 +2162,99 @@ def test_the_json_example_keeps_its_shape():
     prompt = agent.build_prompt(_book(), [], {})
 
     assert any(l.startswith(' {"ticker": "MSFT"') for l in prompt.splitlines())
+
+
+# --- read out of a real thinking block, 2026-09-10 ------------------------------
+
+
+def test_a_clock_time_already_past_means_the_next_one(monkeypatch):
+    """"09:00" asked at 3:59 PM meant tomorrow morning, and resolved to 9 AM
+    that morning — already gone. `clamp_wakeup` then pulled it to the floor, so
+    the agent woke at 4:04 PM and the record showed it choosing that.
+
+    A model reasoning at the close spotted the ambiguity and spent a paragraph
+    converting 9 AM into "1021 minutes" by hand to avoid it.
+    """
+    import datetime
+    import zoneinfo
+
+    et = zoneinfo.ZoneInfo("America/New_York")
+    now = datetime.datetime(2026, 9, 10, 15, 59, tzinfo=et)
+
+    at_nine = agent.parse_wakeup('{"next_wakeup": "09:00"}', now)
+    by_hand = agent.parse_wakeup('{"next_wakeup": "1021"}', now)
+
+    assert at_nine.astimezone(et).day == 11, "a past clock time must roll to the next day"
+    assert at_nine == by_hand, "naming the time and counting the minutes must agree"
+
+
+def test_an_iso_datetime_is_read_whatever_zone_it_carries():
+    """The one format the rules now ask for. Naive is Eastern, because that is
+    the clock the prompt speaks in."""
+    import datetime
+    import zoneinfo
+
+    et = zoneinfo.ZoneInfo("America/New_York")
+    now = datetime.datetime(2026, 9, 10, 15, 59, tzinfo=et)
+    same = {
+        agent.parse_wakeup('{"next_wakeup": "%s"}' % t, now)
+        for t in ("2026-09-11T09:00", "2026-09-11 09:00:00",
+                  "2026-09-11T13:00:00Z", "2026-09-11T09:00-04:00")
+    }
+
+    assert len(same) == 1, f"four spellings of one instant disagreed: {same}"
+    assert same.pop().astimezone(et).hour == 9
+
+
+def test_the_tracked_row_shows_the_newest_analysis_of_the_day(monkeypatch):
+    """The agent caught this one itself.
+
+    It read two INTC rows for 2026-09-10 — $106.24 and $100.44 — and asked
+    whether the tracked table was stale. It was: that row came from a query
+    ordered by `signal_date` alone, a calendar date, so with two analyses on
+    one day it returned whichever row came first.
+    """
+    import types
+
+    def sig(created, price, decision):
+        return types.SimpleNamespace(
+            id=1, ticker="AAA", signal_date="2026-09-10", created_at=created,
+            price_at_signal=price, decision=decision,
+        )
+
+    # Older first, which is what the real query returned.
+    monkeypatch.setattr(
+        agent.db, "get_recent_signals",
+        lambda ticker=None, limit=10: [
+            sig("2026-09-10 06:22:00", 106.24, "Buy"),
+            sig("2026-09-10 13:58:00", 99.95, "Overweight"),
+        ],
+    )
+
+    prompt = agent.build_prompt(_book(), [], {"AAA": 100.0}, watchlist=["AAA"], max_watchlist=30)
+    row = next(l for l in prompt.splitlines() if l.startswith("| AAA | watched"))
+
+    assert "$99.95" in row, f"showed a stale analysis: {row}"
+    assert "Overweight" in row
+
+
+def test_the_prompt_names_the_default_wakeup_as_an_instant():
+    """The rules say "the following open" and the agent had to work out which
+    day that was — at 3:59 PM on a Thursday it reasoned through the weekend."""
+    prompt = agent.build_prompt(_book(), [], {})
+
+    line = next(l for l in prompt.splitlines() if "If you name no next_wakeup" in l)
+
+    assert "T" in line and "Eastern" in line, f"not a concrete instant: {line}"
+
+
+def test_the_research_rule_and_the_measured_timing_agree():
+    """They contradicted each other: the rule said an analysis lands "about an
+    hour from now" — a figure typed in by hand — while the timing line said two
+    minutes. The agent noticed and called it a contradiction."""
+    prompt = agent.SYSTEM_PROMPT + "\n" + agent.build_prompt(
+        _book(), [], {}, price=0.05, analysis_minutes=[2.0, 3.0, 2.5],
+    )
+
+    assert "about an hour from now" not in prompt
+    assert "asked again automatically" in prompt, "it must say it need not schedule the return"

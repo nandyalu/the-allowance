@@ -51,6 +51,16 @@ Entries before 2026-09-11 were swept under these rules; anything that failed all
 
 Newest first.
 
+**2026-09-10 — six fixes read straight out of one thinking block, two of them real bugs the model spotted before we did.** A Cerebras pass at 3:59 PM spent most of its reasoning on things the prompt should have told it, and said so in enough detail to fix each one.
+
+**The tracked table was showing a stale analysis, and the agent noticed.** It read two INTC rows for the same day — one at $106.24, one at $100.44 — and asked "the tracked table might not be updated to latest?". It was right: that row came from `get_recent_signals(limit=1)`, which orders by `signal_date` alone, so with two analyses on one day it returned whichever row came first. The agent was being shown a price the stock had already moved 5.5% away from.
+
+**A clock time earlier in the day silently became five minutes from now.** `"09:00"` at 3:59 PM resolved to 9 AM *that morning*, already past, and the clamp turned it into 4:04 PM. The agent avoided this by computing "1021 minutes" by hand across a paragraph of arithmetic — self-defence that cost it tokens and cost the record a legible intention. A clock time now resolves to its next occurrence.
+
+**The prompt contradicted itself about research.** The rules said an analysis lands "about an hour from now" — a figure written in by hand — while the measured line two sections above said two minutes. It also read as though the agent had to schedule its own return: it does not, because `_run_triggered_analyses` asks it again when the analyses land. Both now say the measured time and state that the wake is automatic.
+
+**Dates carry times, and "price now" carries its own timestamp.** A date alone cannot order two analyses of one ticker on one day, which is exactly what the agent could not resolve.
+
 **2026-09-10 — the prompt states the year, tables the numbers, and moves its fixed rules into the system message.** The agent's own reasoning showed it working out what year it was from a date that never said, and puzzling over whether a price on a signal line was the price now or the price at the analysis. Three fixes to one prompt: the clock line carries the year, the signals and the tracked tickers are tables with named columns instead of run-on sentences, and the rules that never change moved to the system message, leaving the user message to the figures that do.
 
 **Measured in three shapes, same data, same model, back to back.** The tables alone cut the model's output; moving the fixed rules to the system message cut it again and took a quarter off the wall clock.

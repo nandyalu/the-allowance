@@ -804,7 +804,11 @@ The rules block:
 - A note is never a substitute for a decision. [...]
 - Doing nothing is a valid answer, and often the right one.
 - You decide when you are next asked, and nothing else does. `next_wakeup`
-  takes minutes or an Eastern clock time, minimum 5 minutes and maximum 4 days.
+  takes an ISO datetime — `"2026-09-11T09:00"` is Eastern, a trailing Z or an
+  offset is read as given. Minimum 5 minutes, maximum 4 days. **The other
+  forms still parse** (minutes, `"2h"`, `"14:30"`, `"3:58 PM ET"`) and are kept
+  as a fallback: dropping a usable answer costs a whole pass. One instructed
+  format is what stopped the agent converting 9 AM into "1021 minutes" by hand.
   Any hour is allowed, including before the open, after the close and at the
   weekend — research works then, orders do not.
 - If you name no time, you are next asked at the following open. That is a

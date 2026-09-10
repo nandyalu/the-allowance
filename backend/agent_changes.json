@@ -26,5 +26,9 @@
   {
     "date": "2026-09-10",
     "message": "You can now read an analyst's reasoning, not just its verdict and levels. Use side \"read\" with a ticker, and a \"date\" like \"2026-09-08\" for a particular one rather than the newest — useful for comparing the analysis you bought on against today's, to see whether the thesis still holds. Reading is free: you already paid for that analysis. One read per pass, and it uses the same single follow-up turn a refused order would, so read when the reasoning would change what you do. Reading is not acting."
+  },
+  {
+    "date": "2026-09-10",
+    "message": "Four things you were working out for yourself are now stated. Analysis rows carry a time, not just a date, so two looks at one ticker on one day can be told apart, and they are listed newest first. \"Price now\" says the moment it was read. The tracked-ticker table was showing an older analysis of the same day than the signals table above it — that was a bug and it is fixed. And for next_wakeup, give an ISO datetime like \"2026-09-11T09:00\" (Eastern unless you add an offset); the prompt now tells you what time you will be asked at if you name none. Other formats still work. One more: research you order runs after the pass and you are asked again automatically when it lands, so you do not need a wakeup for it."
   }
 ]
