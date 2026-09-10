@@ -8,6 +8,8 @@ Entries are one or two lines: what changed, and why. Newest first.
 
 ## 2026-09-10
 
+- **Site** — The rhythm column on the home page grows with the window instead of sitting at a fixed 17rem, and its scrollbar is themed rather than the browser's grey default. It carries every pass the agent chose to make — fifteen rows on a busy day against the five it was built for — so a wider column wraps fewer of them. Measured at 1440px: the column goes 272px to 317px and the hidden part of the list 877px to 772px. It still scrolls, because fifteen rows do not fit a viewport-height sticky panel at any sensible width.
+
 - **Site** — The analyst rationale is parsed into its sections instead of printed raw. It is Markdown, so a reader saw literal `**Rating**:` asterisks and lost every section break — one blob in a 680px reading measure, beside analyst reports running to 1198px, which is what made it look wrapped when the reports did not. The shape is fixed and known: all 44 stored rationales, from two different models, carry Rating, Executive Summary, Investment Thesis and Time Horizon, and 38 carry Price Target.
 - **Site** — Copy buttons on every long block: each analyst report, and a decision pass's prompt, answer, thinking and each individual turn. These run to tens of thousands of characters and are exactly what a reader wants to take elsewhere. The button says "Cannot copy" rather than failing silently, because `navigator.clipboard` is absent over plain http on a LAN address — which is how this app is reached at home.
 

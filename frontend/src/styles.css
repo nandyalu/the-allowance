@@ -1872,7 +1872,12 @@ table {
 
 .status {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 17rem;
+  /* The rhythm column grows with the window instead of sitting at a fixed
+     17rem. It carries every pass the agent chose to make, which on a busy day
+     is fifteen rows rather than five, and a wider column wraps fewer of them
+     — so the list gets shorter before it has to scroll at all. Capped, because
+     past about 24rem it starts taking width the money column needs. */
+  grid-template-columns: minmax(0, 1fr) clamp(17rem, 22vw, 24rem);
   gap: var(--sp-6);
   align-items: start;
 }
@@ -1999,9 +2004,29 @@ table {
      five fixed rows a day and always fit; it now carries every pass the
      agent chose to make, which on a busy day is fifteen. Capping it to the
      window and letting it scroll inside keeps the last row reachable. */
-  max-height: calc(100vh - var(--topbar-h) - var(--sp-8));
+  max-height: calc(100vh - var(--topbar-h) - var(--sp-5));
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* Themed, because the default is a grey slab that belongs to the browser
+     rather than the page — and this is the one scrollbar a reader meets
+     inside the content. Both properties are needed: Firefox reads the first
+     pair, Chrome and Safari the ::-webkit rules below. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.timeline::-webkit-scrollbar {
+  width: 8px;
+}
+.timeline::-webkit-scrollbar-track {
+  background: transparent;
+}
+.timeline::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+.timeline::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
 }
 
 .timeline-title {
