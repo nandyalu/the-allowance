@@ -274,6 +274,10 @@ export interface Settings {
   alerts_enabled: boolean;
   agent_enabled: boolean;
   agent_budget: number;
+  /** When the static snapshot behind this page was taken, ISO 8601.
+   * Present only on the published copy — the live app's data is live and
+   * there is nothing to date. See backend/services/snapshot_export.py. */
+  snapshot_generated_at?: string;
   /** What one analysis costs the agent here. Served rather than compiled in —
    * it was "$0.05" in six templates, so a deployment charging something else
    * stated a price it does not charge. Zero means research is free, which is a

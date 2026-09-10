@@ -158,6 +158,14 @@
   >
     <path d="M6 6l12 12M18 6L6 18" />
   </symbol>
+  <!-- The one filled mark in the sprite. GitHub's is a recognised shape and a
+       stroked approximation of it reads as a different logo, which defeats
+       the point of using it. -->
+  <symbol id="i-github" viewBox="0 0 24 24" fill="currentColor">
+    <path
+      d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.86 10.92c.58.1.79-.25.79-.56v-2.1c-3.2.7-3.88-1.36-3.88-1.36-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.7 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11 11 0 0 1 5.79 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.12 3.05.74.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.4-5.25 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5Z"
+    />
+  </symbol>
   <symbol
     id="i-sun"
     viewBox="0 0 24 24"
@@ -246,7 +254,34 @@
       }
     </nav>
 
+    <!-- Only on the published copy, which is a static export refreshed on a
+         loop. In the masthead rather than the footer: a reader deciding
+         whether to believe a number needs to know how old it is before they
+         read it, not after. Empty on the live app, where nothing is stale.
+
+         A direct child of masthead-inner, not of the tools group, so it can
+         take a row of its own below 52rem — in the tools row it pushed 56px
+         off the right of a phone. -->
+    @if (snapshotAge()) {
+      <span class="snapshot-age" title="This site is a static snapshot, rebuilt every 15 minutes">
+        Updated {{ snapshotAge() }}
+      </span>
+    }
+
     <div class="masthead-tools">
+      <!-- In the masthead rather than the footer. Every claim this site makes
+           rests on the code and the journal being readable, so the way to
+           check it should not be the last link on the page. -->
+      <a
+        class="icon-btn"
+        href="https://github.com/nandyalu/the-allowance"
+        rel="noopener"
+        target="_blank"
+        aria-label="The source code on GitHub"
+        title="Source on GitHub"
+      >
+        <svg class="nav-icon" aria-hidden="true"><use href="#i-github" /></svg>
+      </a>
       <button
         class="icon-btn"
         type="button"
@@ -343,7 +378,7 @@
           <a [routerLink]="item.path" routerLinkActive="active">{{ item.label }}</a>
         }
         <a href="/docs">Documentation</a>
-        <a href="https://github.com/nandyalu/trading-helper" rel="noopener">Source code</a>
+        <a href="https://github.com/nandyalu/the-allowance" rel="noopener">Source code</a>
       </div>
 
       <!-- Credit where it is due. This is built on other people's work and

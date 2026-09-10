@@ -1,6 +1,24 @@
-# The Allowance
+<!-- The mark follows the reader's theme. GitHub honours <picture> with
+     prefers-color-scheme, and the two files differ only in ink — see
+     frontend/public/logo/README.md for what the mark means and the rules for
+     using it. -->
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="frontend/public/logo/logo-dark.svg">
+    <img src="frontend/public/logo/logo-light.svg" alt="The Allowance" width="96" height="96">
+  </picture>
+</p>
 
-**One question, asked in public: what does an autonomous AI agent do with $10,000?**
+<h1 align="center">The Allowance</h1>
+
+<p align="center"><strong>One question, asked in public: what does an autonomous AI agent do with $10,000?</strong></p>
+
+<p align="center">
+  <a href="https://the-allowance.nandyalu.com">The live site</a> ·
+  <a href="CONTRIBUTING.md">Contributing</a> ·
+  <a href="AI_POLICY.md">Using AI on this project</a> ·
+  <a href="JOURNEY.md">The journey</a>
+</p>
 
 *The Allowance* — money given to someone to spend as they choose, inside rules they did not set. That is the setup exactly.
 

@@ -308,6 +308,17 @@ body {
   scrollbar-width: none;
 }
 
+/* Only where the snapshot stamp shares the row. The stamp took 17px from the
+   nav and scrolled "Journal" out of sight, and a nav that silently hides a
+   page is worse than a truncated timestamp — so here the stamp yields.
+   Below this width the nav must stay shrinkable: pinning it at 900px pushed
+   the tools 144px off the right of the page. */
+@media (min-width: 75.0625rem) {
+  .topnav {
+    flex-shrink: 0;
+  }
+}
+
 .topnav::-webkit-scrollbar {
   display: none;
 }
@@ -335,6 +346,51 @@ body {
   color: var(--text);
   font-weight: 600;
   background: var(--surface-2);
+}
+
+/* The published site's staleness, beside the name. Quiet on purpose: it is
+   context for every number on the page, not a headline of its own. It sits
+   after the brand in source order, so `margin-right: auto` keeps the nav and
+   the tools where they were. */
+.snapshot-age {
+  font-size: var(--t-sm);
+  color: var(--text-faint);
+  white-space: nowrap;
+  padding-right: var(--sp-1);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Between the nav's breakpoint and a wide desktop the masthead is full: the
+   destinations, the brand and the tools already use the row. Squeezed in
+   there the stamp truncated to a 4px sliver and still forced the page 
+   sideways at 900px, so it steps out of that band entirely. It is present
+   above it, and takes its own row below it. */
+@media (min-width: 52.0625rem) and (max-width: 75rem) {
+  .snapshot-age {
+    display: none;
+  }
+}
+
+/* Below the nav's breakpoint the masthead is tight. It stays — a phone reader
+   needs the staleness as much as anyone — but stops claiming the free space,
+   so the brand and the tools keep their positions. */
+/* Its own row on a narrow screen. In the tools row it pushed 56px off the
+   right of a 420px phone, and a phone reader needs the staleness as much as
+   anyone — so the masthead wraps rather than the label disappearing. */
+@media (max-width: 52rem) {
+  .masthead-inner {
+    flex-wrap: wrap;
+  }
+
+  .snapshot-age {
+    order: 3;
+    flex-basis: 100%;
+    text-align: right;
+    padding-right: 0;
+    font-size: var(--t-xs);
+  }
 }
 
 .masthead-tools {

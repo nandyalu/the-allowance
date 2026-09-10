@@ -8,6 +8,10 @@ Entries are one or two lines: what changed, and why. Newest first.
 
 ## 2026-09-10
 
+- **Site** — The mark and the name now appear on the GitHub README and in the documentation site's header, from the SVG variants that already existed for exactly this. `logo-dark.svg`, not `logo-mono.svg`: the header renders it as an `<img>`, and `currentColor` inside an SVG loaded that way resolves to black rather than inheriting the header ink.
+- **Site** — The published copy shows how stale it is (`Updated 12 minutes ago`) in the masthead. It is a static export refreshed on a loop, and a reader could not otherwise tell a quiet afternoon from a publisher that stopped three days ago. Absent on the live app, where the data is live and there is nothing to date.
+- **Site** — A GitHub link sits in the masthead rather than the footer. Every claim this site makes rests on the code and the journal being readable, so the way to check it should not be the last link on the page. The two links that were there pointed at `trading-helper`, the name the repository had before 2026-09-05.
+
 - **Setup** — The account check asks the broker whether the named account exists, instead of only checking the variable holds something. A second deployment reported ready with a number the sandbox no longer issues, while every pass logged "this deployment will not place orders" — the one page whose job is to make that visible was the page saying it was fine. The LLM check already drew this distinction; the account check had not.
 
 - **Docs** — Three more skills in `.claude/skills/`, each built from something that actually went wrong: `review-contribution` for the rules a test cannot judge, `model-change` for the acid test that rejected five of six models, and `incident` for working out which days a silent fault contaminated. Every SQL query in the last one was run before it shipped.

@@ -35,6 +35,12 @@ nav = [
 
 [project.theme]
 language = "en"
+# The mark, and the tab icon. logo-dark, not logo-mono: the header renders it
+# as an <img>, and currentColor inside an SVG loaded that way resolves to
+# black rather than inheriting the header ink. The header bar is dark in both
+# palettes, so the light-ink file is the one that shows.
+logo = "assets/logo.svg"
+favicon = "assets/favicon.svg"
 features = [
     "content.code.copy",
     "content.tooltips",

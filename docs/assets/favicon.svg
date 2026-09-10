@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Same mark as app-logo: TA drawn as an equity curve inside its bounds.
+       One rule is the T's bar, the A's crossbar and the starting line; the T
+       drops below it and the A rises above. Colours are literal because a
+       favicon has no page to inherit from. -->
+  <rect width="32" height="32" rx="7" fill="#17150f"/>
+  <g stroke="#faf9f6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.45" fill="none">
+    <path d="M5 11V6.8A1.8 1.8 0 0 1 6.8 5H11"/>
+    <path d="M21 5h4.2A1.8 1.8 0 0 1 27 6.8V11"/>
+    <path d="M27 21v4.2a1.8 1.8 0 0 1-1.8 1.8H21"/>
+    <path d="M11 27H6.8A1.8 1.8 0 0 1 5 25.2V21"/>
+  </g>
+  <path d="M17.4 22.6 21.3 9.8 25.2 22.6" fill="none" stroke="#2a9d6a"
+        stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M10.8 16V22.6" fill="none" stroke="#e05a4a"
+        stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M7.4 16H25.2" fill="none" stroke="#faf9f6"
+        stroke-width="2.4" stroke-linecap="round"/>
+</svg>

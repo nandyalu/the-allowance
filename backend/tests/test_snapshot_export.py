@@ -112,7 +112,29 @@ def test_settings_json_always_reports_public_true(snapshot_dir, stub_every_route
     on them."""
     snapshot_export.export_all()
 
-    assert _read(snapshot_dir, "settings.json") == {"public": True, "llm_model": "x"}
+    settings = _read(snapshot_dir, "settings.json")
+    assert settings["public"] is True
+    assert settings["llm_model"] == "x"
+
+
+def test_settings_json_carries_when_the_snapshot_was_taken(snapshot_dir, stub_every_route):
+    """The published site is a static export refreshed on a loop, so a reader
+    cannot otherwise tell a quiet afternoon from a publisher that stopped
+    three days ago — the numbers look equally current either way.
+
+    It rides on settings.json because the site already fetches that on load,
+    and it is absent from the live API on purpose: on the private container
+    the data is live and there is nothing to date."""
+    import datetime
+
+    snapshot_export.export_all()
+
+    stamp = _read(snapshot_dir, "settings.json")["snapshot_generated_at"]
+    when = datetime.datetime.fromisoformat(stamp)
+
+    assert when.tzinfo is not None, "a bare local time is unreadable to a browser"
+    age = (datetime.datetime.now(datetime.timezone.utc) - when).total_seconds()
+    assert 0 <= age < 60, f"stamped {age}s ago — it should name this run"
 
 
 def test_one_failing_export_does_not_block_the_others(snapshot_dir, stub_every_route, monkeypatch):

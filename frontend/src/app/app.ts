@@ -14,6 +14,7 @@ import { filter } from 'rxjs';
 import { SettingsService } from './core/services/settings.service';
 import { SetupService, shouldSendToSetup } from './core/services/setup.service';
 import { Logo } from './shared/logo';
+import { timeAgo } from './shared/market-time';
 
 /** One destination in the sidebar. `icon` names a symbol in the sprite at the
  * top of app.html. */
@@ -81,6 +82,27 @@ export class App {
     ...this.aboutNav,
     ...(this.isPublic() ? [] : [{ path: '/settings', label: 'Settings', icon: 'sliders' }]),
   ]);
+
+  /** Bumped once a minute so `snapshotAge` re-reads the clock. */
+  private readonly clockTick = signal(0);
+
+  /** How stale the published page is, or empty on the live app.
+   *
+   * The static site is rebuilt on a loop, and a reader has no way to tell a
+   * quiet afternoon from a publisher that stopped three days ago — the
+   * numbers look equally current either way. `snapshot_generated_at` is only
+   * written into the exported settings.json, so this is empty on the private
+   * container, which is correct: there the data is live.
+   *
+   * Recomputed on a timer rather than once, or a tab left open overnight
+   * would still claim the page was built four minutes ago.
+   */
+  protected readonly snapshotAge = computed(() => {
+    const taken = this.settingsService.settings()?.snapshot_generated_at;
+    if (!taken) return '';
+    this.clockTick();
+    return timeAgo(taken);
+  });
 
   /** True on the published copy, where the backend refuses every write.
    *
@@ -170,6 +192,12 @@ export class App {
       io.observe(el);
       this.destroyRef.onDestroy(() => io.disconnect());
     });
+
+    // Once a minute: the label only ever changes at a minute boundary, and a
+    // tab left open overnight would otherwise still claim the page was built
+    // four minutes ago.
+    const ticking = setInterval(() => this.clockTick.update((n) => n + 1), 60_000);
+    this.destroyRef.onDestroy(() => clearInterval(ticking));
 
     this.applyTheme(this.theme());
     // Read once at startup: which copy this is, is a property of the container

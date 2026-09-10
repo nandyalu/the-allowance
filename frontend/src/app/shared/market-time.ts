@@ -143,3 +143,35 @@ export function readerDateLabel(instant: Date | string): string {
     timeZone: localZone(),
   }).format(d);
 }
+
+/**
+ * "just now", "12 minutes ago", "3 hours ago", "2 days ago".
+ *
+ * For the published site's snapshot stamp, where the useful fact is how stale
+ * the page is rather than the wall-clock time it was built. A reader cannot
+ * otherwise tell a quiet afternoon from a publisher that stopped three days
+ * ago: the numbers look equally current either way.
+ *
+ * Rounds down, so it never claims the page is fresher than it is.
+ */
+export function timeAgo(instant: Date | string, now: Date = new Date()): string {
+  const then = instant instanceof Date ? instant : new Date(instant);
+  if (Number.isNaN(then.getTime())) return '';
+
+  const seconds = Math.floor((now.getTime() - then.getTime()) / 1000);
+  // A clock a few seconds behind the exporter's would otherwise read "in 4
+  // seconds", which looks broken rather than precise.
+  if (seconds < 60) return 'just now';
+
+  const units: [number, Intl.RelativeTimeFormatUnit][] = [
+    [60, 'minute'],
+    [3600, 'hour'],
+    [86400, 'day'],
+  ];
+  let [size, unit]: [number, Intl.RelativeTimeFormatUnit] = units[0];
+  for (const [s, u] of units) {
+    if (seconds >= s) [size, unit] = [s, u];
+  }
+  const value = Math.floor(seconds / size);
+  return new Intl.RelativeTimeFormat('en', { numeric: 'always' }).format(-value, unit);
+}

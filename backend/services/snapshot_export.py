@@ -20,6 +20,7 @@ Never raises. A scheduled export that failed loudly would take the whole job
 down over one bad ticker; ``_safe`` catches and logs instead, the same
 discipline ``journey.write_month_files`` uses for the same reason.
 """
+import datetime
 import json
 import logging
 import os
@@ -76,6 +77,13 @@ def _safe(relative_path: str, build: Callable[[], Any]) -> None:
 def export_all() -> None:
     """Regenerate every public snapshot file. Safe to call on any schedule —
     each file is independent, so one failure never blocks the rest."""
+    # Stamped at the start rather than when settings.json happens to be
+    # written, so the time names the run rather than a file's position in it.
+    # The published site is a static export refreshed on a loop, and without
+    # this a reader has no way to tell a quiet afternoon from a publisher that
+    # stopped three days ago — the numbers look equally current either way.
+    started = datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0)
+
     _safe("agent.json", agent_routes.get_book)
     _safe("agent_trades.json", agent_routes.get_trades)
     _safe("agent_performance.json", agent_routes.get_performance)
@@ -125,7 +133,18 @@ def export_all() -> None:
     # the published artifact, not the process that built it. This is what
     # the frontend's existing isPublic checks (the Settings nav link, the
     # exits-arm button) read to hide themselves on the public build.
-    _safe("settings.json", lambda: {**_dump(settings_routes.get_settings()), "public": True})
+    # `snapshot_generated_at` rides here rather than in a file of its own so
+    # the site needs no extra request: settings.json is already fetched on
+    # load. It is absent from the live API, which is correct — on the private
+    # container the data is live and there is nothing to date.
+    _safe(
+        "settings.json",
+        lambda: {
+            **_dump(settings_routes.get_settings()),
+            "public": True,
+            "snapshot_generated_at": started.isoformat(),
+        },
+    )
 
     _export_tickers()
 
