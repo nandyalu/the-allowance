@@ -2071,41 +2071,80 @@ def test_a_read_is_not_an_order(monkeypatch):
     assert rejected == []
 
 
-def test_only_one_read_per_pass(monkeypatch):
-    """A second read is dropped rather than answered. Silently granting a third
-    turn is how 'let me look at one more thing' becomes the whole pass."""
-    asked = []
+def test_it_may_read_several_analyses_before_deciding(monkeypatch):
+    """A person deciding whether to buy reads the research first, and often
+    more than one piece of it. Rationing that to a single analysis was a
+    restriction with no reason behind it but the fear of a loop."""
+    asked, reads = [], []
     replies = iter([
-        '{"reasoning": "one", "orders": [{"side": "read", "ticker": "INTC"}]}',
-        '{"reasoning": "two", "orders": [{"side": "read", "ticker": "AVGO"}]}',
+        '{"reasoning": "look at two", "orders": ['
+        '{"side": "read", "ticker": "INTC"}, {"side": "read", "ticker": "AVGO"}]}',
+        '{"reasoning": "one more", "orders": [{"side": "read", "ticker": "CRWV"}]}',
+        '{"reasoning": "now I know", "orders": []}',
     ])
     monkeypatch.setattr(agent, "_ask", lambda p: asked.append(p) or next(replies))
+    monkeypatch.setattr(agent.analysis_reader, "read",
+                        lambda t, on=None: reads.append(t) or f"{t} reasoning")
+
+    reasoning, accepted, _ = agent._decide(_book(cash=250.0), [], {})
+
+    assert reads == ["INTC", "AVGO", "CRWV"], "every requested analysis should be read"
+    assert len(asked) == 3, "two rounds of reading, then the decision"
+    assert reasoning == "now I know"
+
+
+def test_reading_stops_at_the_turn_budget(monkeypatch):
+    """The loop the bound exists to stop: a model that asks for one more thing
+    on every round would spend the pass reading and never decide."""
+    asked = []
+    monkeypatch.setattr(
+        agent, "_ask",
+        lambda p: asked.append(p) or '{"reasoning": "again", "orders": ['
+                                     '{"side": "read", "ticker": "INTC"}]}',
+    )
     monkeypatch.setattr(agent.analysis_reader, "read", lambda t, on=None: "text")
 
-    _, accepted, _ = agent._decide(_book(cash=250.0), [], {})
+    agent._decide(_book(cash=250.0), [], {})
 
-    assert len(asked) == 2, "the second read must not earn a third turn"
-    assert accepted == []
+    assert len(asked) == 1 + agent._MAX_READ_TURNS, (
+        "an endless read chain must stop at the turn budget"
+    )
 
 
-def test_a_read_spends_the_same_budget_as_the_refusal_retry(monkeypatch):
-    """One follow-up per pass, shared. The retry has been capped at one since
-    it was built — a loop arguing with a small model would spend the market
-    open doing it — and a read costs the same and risks the same."""
+def test_reading_stops_at_the_analysis_budget(monkeypatch):
+    """The other half: one answer asking for the whole watchlist."""
+    reads = []
+    many = ", ".join('{"side": "read", "ticker": "T%d"}' % i for i in range(20))
+    monkeypatch.setattr(
+        agent, "_ask",
+        lambda p: '{"reasoning": "everything", "orders": [%s]}' % many
+        if not reads else '{"reasoning": "done", "orders": []}',
+    )
+    monkeypatch.setattr(agent.analysis_reader, "read",
+                        lambda t, on=None: reads.append(t) or "text")
+
+    agent._decide(_book(cash=250.0), [], {})
+
+    assert len(reads) == agent._MAX_READS_PER_PASS
+
+
+def test_reading_no_longer_spends_the_refusal_retry(monkeypatch):
+    """They stop different things. One is the agent gathering what it needs to
+    decide; the other is Python saying the decision cannot be executed."""
     asked = []
     replies = iter([
-        '{"reasoning": "look first", "orders": [{"side": "read", "ticker": "AAA"}]}',
-        # Unaffordable: this would earn a retry if the budget were untouched.
+        '{"reasoning": "look", "orders": [{"side": "read", "ticker": "AAA"}]}',
         '{"reasoning": "greedy", "orders": [{"ticker": "AAA", "side": "buy", "quantity": 99}]}',
+        '{"reasoning": "resized", "orders": [{"ticker": "AAA", "side": "buy", "quantity": 2}]}',
     ])
     monkeypatch.setattr(agent, "_ask", lambda p: asked.append(p) or next(replies))
     monkeypatch.setattr(agent.analysis_reader, "read", lambda t, on=None: "text")
 
     _, accepted, rejected = agent._decide(_book(cash=250.0), [], {"AAA": 100.0})
 
-    assert len(asked) == 2, "a read plus a retry would be three model calls in one pass"
-    assert accepted == []
-    assert rejected, "the refusal still stands and reaches the next prompt"
+    assert len(asked) == 3, "the read must not consume the refusal's own retry"
+    assert [o["quantity"] for o in accepted] == [2.0]
+    assert rejected == []
 
 
 def test_every_turn_of_a_pass_is_recorded(monkeypatch):

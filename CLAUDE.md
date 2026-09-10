@@ -21,6 +21,8 @@ That sentence decides most arguments about this codebase, so read it before prop
 
 This is also why the note action exists. The agent saying "I cannot see X" is the experiment reporting a missing tool, and it is evidence, not noise.
 
+**Tokens spent deciding well are not waste; tokens spent guessing are.** These pull in opposite directions and both are worth acting on. A prompt that leaves the agent working out what year it is, which of two same-day analyses is current, or how long an analysis takes is burning tokens on ambiguity that a clearer prompt removes for free — every one of those was real, and each was found by reading a stored thinking block. But an agent that wants to read six analyses before it commits money is doing the thing a careful person would do, and rationing that to save a few thousand tokens buys nothing. **Cut the confusion, fund the deliberation.** When a limit exists only because an unbounded version might loop, bound it — do not ration it.
+
 **The one thing that is not a tool is a human hand.** No control lets a person nudge the book, because that puts a second decision-maker in the record and afterwards nothing can tell which one produced a result. The agent's autonomy and the operator's absence are the same rule seen from two sides.
 
 **Since 2026-09-01 there are no manual controls anywhere.** No Discord slash
@@ -789,9 +791,11 @@ The rules block:
   is on record and reading it costs nothing [...] **Read one before you act on
   it.**
 - To read one, use side `read` with a ticker, and a `date` [...]
-- You get one read per pass, and it uses the same single follow-up turn a
-  refused order would. [...] Reading is not acting: a pass that only read is an
-  idle pass.
+- You may read up to `N` analyses before deciding, and ask again after reading
+  up to `M` times [...] **Read what you need**: this is the one place spending
+  is encouraged, because a decision made on a verdict alone is the thing this
+  is trying to avoid. Reading is not acting, though: a pass that only read is
+  an idle pass, and the budget runs out.
 - **A Hold is the decision that says least**, and the one most worth reading.
   [...]
 

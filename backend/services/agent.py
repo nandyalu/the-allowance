@@ -1358,6 +1358,22 @@ def _price_map(tickers) -> dict[str, float | None]:
 # "paper-trading" was dropped from here on 2026-09-09 along with the opening
 # line of build_prompt. It appeared in both, and leaving it in the system
 # message would have kept the tell in the more influential of the two.
+# How much reading one pass may do before it has to decide.
+#
+# **A person deciding whether to buy reads the research first**, and often more
+# than one piece of it. Rationing that to a single analysis was a restriction
+# with no reason behind it but the fear of a loop, and tokens spent reading
+# research are the tokens this experiment most wants spent — see "What the
+# experiment is for" in CLAUDE.md.
+#
+# Two budgets rather than one, because they stop different things. The analyses
+# cap stops a pass reading the whole watchlist; the turns cap stops a model
+# asking for one more thing on every round. Six and three allow "read three,
+# think, read two more, decide" and refuse an unbounded chain.
+_MAX_READS_PER_PASS = 6
+_MAX_READ_TURNS = 3
+
+
 # **Rules that never change, moved here on 2026-09-10.** They were rebuilt into
 # every user message, which cost tokens on every pass and buried the figures
 # that do change. The split is by whether a rule quotes a number from this
@@ -1412,9 +1428,12 @@ _FIXED_RULES = [
     "\"2026-09-08\" if you want a particular analysis rather than the newest. "
     "Comparing the one you bought on against today's is how you tell whether a "
     "thesis still holds.",
-    "- You get one read per pass, and it uses the same single follow-up turn a "
-    "refused order would. Spend it on the decision that turns on it. Reading "
-    "is not acting: a pass that only read is an idle pass.",
+    f"- You may read up to {_MAX_READS_PER_PASS} analyses before deciding, and "
+    f"ask again after reading up to {_MAX_READ_TURNS} times — list several "
+    "reads together if you want them at once. Read what you need: this is the "
+    "one place spending is encouraged, because a decision made on a verdict "
+    "alone is the thing this is trying to avoid. Reading is not acting, "
+    "though: a pass that only read is an idle pass, and the budget runs out.",
     "- Doing nothing is a valid answer, and often the right one.",
     "- You decide when you are next asked, and nothing else does. Put "
     "\"next_wakeup\" beside your orders as an ISO datetime — "
@@ -1752,14 +1771,28 @@ def _decide(book, signals, prices, closed=None, regime_line=None, horizon_days=N
     turns = [_turn(shown, answer)]
     reasoning, proposed = parse_decision(answer)
 
-    # **One follow-up turn per pass, and a read spends it.** The retry has been
-    # capped at one since it was built: a loop arguing with a small model would
-    # spend the market open doing it. A read costs the same and risks the same,
-    # so the two draw on one budget rather than two.
+    # **It may read as much as it needs, inside a bound.** A person deciding
+    # whether to buy reads the research first, and often more than one piece of
+    # it; rationing that to a single analysis was a restriction with no reason
+    # behind it but the fear of a loop. The bound answers the loop directly —
+    # a budget of analyses and a budget of turns — so the agent can ask again
+    # after reading, and cannot ask forever.
+    #
+    # Reads no longer share the refusal retry's budget. They are different
+    # things: one is the agent gathering what it needs to decide, the other is
+    # Python telling it the decision it gave cannot be executed.
+    read_budget, turn_budget = _MAX_READS_PER_PASS, _MAX_READ_TURNS
     wants, proposed = _split_reads(proposed)
-    if wants:
-        readings = [analysis_reader.read(w.get("ticker"), w.get("date")) for w in wants[:1]]
-        log.info("Re-asking after a read of %s", wants[0].get("ticker"))
+    read_any = bool(wants)
+    while wants and read_budget > 0 and turn_budget > 0:
+        taking = wants[:read_budget]
+        read_budget -= len(taking)
+        turn_budget -= 1
+        readings = [analysis_reader.read(w.get("ticker"), w.get("date")) for w in taking]
+        log.info(
+            "Re-asking after reading %s (%d read(s) and %d turn(s) left)",
+            ", ".join(str(w.get("ticker")) for w in taking), read_budget, turn_budget,
+        )
         shown = build_prompt(book, signals, prices, closed=closed,
                              regime_line=regime_line, horizon_days=horizon_days, menu=menu,
                              price=research.get_price(),
@@ -1773,15 +1806,16 @@ def _decide(book, signals, prices, closed=None, regime_line=None, horizon_days=N
         turns.append(_turn(shown, answer))
         read_reasoning, proposed = parse_decision(answer)
         reasoning = read_reasoning or reasoning
-        # A second read in the same pass is dropped rather than answered. The
-        # budget is spent, and silently granting a third turn is how "let me
-        # look at one more thing" becomes the whole pass.
-        _, proposed = _split_reads(proposed)
+        wants, proposed = _split_reads(proposed)
+    if wants:
+        # Out of budget with more asked for. Dropped rather than answered:
+        # this is the loop the bound exists to stop, and the pass still has a
+        # decision to give.
+        log.info("Read budget spent; ignoring %d further read(s)", len(wants))
 
     accepted, rejected = screen(proposed, book, prices, by_ticker, menu_tickers)
-    # No retry when a read already used the follow-up. The refusals still reach
-    # the agent — they are stored and shown in the next pass's prompt.
-    if not rejected or wants:
+    # The retry keeps its own single turn, which reading no longer spends.
+    if not rejected:
         return Decision(reasoning, accepted, rejected, shown, answer,
                         getattr(answer, "thinking", None), *spend, turns=turns)
 
@@ -1808,6 +1842,8 @@ def _decide(book, signals, prices, closed=None, regime_line=None, horizon_days=N
     return Decision(retry_reasoning or reasoning, retry_accepted, retry_rejected,
                     shown, retry_answer, getattr(retry_answer, "thinking", None), *spend,
                     turns=turns)
+
+
 
 
 def _turn(prompt: str, answer) -> dict:

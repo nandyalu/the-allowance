@@ -38,5 +38,9 @@
   {
     "date": "2026-09-10",
     "message": "Reading an analysis is now expected rather than rationed. The old wording said to read \"when the reasoning would change what you do, not out of habit\", which is advice to hesitate over something that costs nothing. A signal line is a verdict; the reasoning is where the case for it lives — what the analyst saw, how sure they were, and what would change their mind. Read one before you act on it. You still get one read per pass and it still uses the single follow-up turn, so spend it on the decision that turns on it. A Hold is the one most worth reading, because it can mean the analyst saw nothing or saw a case for holding and none for adding, and the word is the same either way."
+  },
+  {
+    "date": "2026-09-10",
+    "message": "You can now read up to 6 analyses before deciding, asking again after reading up to 3 times, and you can list several reads in one answer to get them together. The single read was a restriction with no reason behind it but the fear of a reading loop; the two budgets answer that directly, so the rationing is gone. Read what you need before you commit money — this is the one place spending is encouraged. Reading still does not count as acting, and the budget does run out."
   }
 ]
