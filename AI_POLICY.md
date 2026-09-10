@@ -25,7 +25,16 @@ Read these, in this order:
 
 1. **[CONTRIBUTING.md](https://github.com/nandyalu/the-allowance/blob/main/CONTRIBUTING.md)** — the four rules that are not up for discussion, and where a change gets recorded.
 2. **[CLAUDE.md](https://github.com/nandyalu/the-allowance/blob/main/CLAUDE.md)** — the current contract. What the agent is shown, what it may ask for, what Python refuses, and the reasoning behind each. Long, and the sections above the fold are the ones that decide arguments.
-3. **The skills in `.claude/skills/`** — `graft` for finding code, `stale-check` for what to sweep after a change, `orwell-writing` for prose.
+3. **The skills in `.claude/skills/`.** Each exists because something went wrong without one.
+
+| Skill | Use it when |
+|---|---|
+| `graft` | Finding code. The repo is indexed; one query usually replaces several file reads |
+| `stale-check` | After any change, before committing. Records it in the right file and sweeps what goes stale silently |
+| `review-contribution` | Reviewing a patch — yours or someone else's — for the rules a test cannot judge |
+| `model-change` | Before pointing the app at a different language model. Six were tested here and five rejected |
+| `incident` | A day looks wrong. Establishes which days are contaminated and whether the record still holds |
+| `orwell-writing` | Any prose, including commit messages and comments |
 
 Then, working:
 
