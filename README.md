@@ -58,6 +58,8 @@ It answers with a list of actions, and Python refuses what cannot be executed as
 | [The journey](JOURNEY.md) | Every change to the agent, when, and why |
 | [Changelog](docs/changelog.md) | Everything else that changed: deployment, setup, the site, the docs |
 | [Model training](docs/model-training.md) | What it would take to make a small model reliable here |
+| [Contributing](CONTRIBUTING.md) | **Start here to change anything.** The four rules, where a change gets recorded, and the licence terms |
+| [Using AI on this project](AI_POLICY.md) | Most of this was written by an AI assistant. What that costs, and what goes wrong |
 
 ## Quick start
 
@@ -75,3 +77,10 @@ It answers with a list of actions, and Python refuses what cannot be executed as
 - Signals come from a small local model. Treat each one as a structured second opinion, not as a fact — the scorecard exists to show how much to trust it.
 - **A single analysis is one sample.** The model runs at temperature 1, so the same ticker on the same day has returned opposite decisions. The scorecard's by-model breakdown is the only honest way to compare two models.
 - Nothing here is financial advice.
+- **Most of this codebase was written by an AI assistant.** [AI_POLICY.md](AI_POLICY.md) says what that means and lists, with dates, the specific ways it has gone wrong here.
+
+## Licence
+
+[PolyForm Noncommercial 1.0.0](LICENSE). **Source-available, not open source:** read it, run it, change it and share it for any noncommercial purpose; do not sell it or put it in a commercial product.
+
+Contributions are welcome under the terms in [CONTRIBUTING.md](CONTRIBUTING.md), which asks for a `Signed-off-by` line and one extra grant. Read the licence rather than this summary.
