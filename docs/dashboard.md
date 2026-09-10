@@ -83,7 +83,7 @@ The distinction is load-bearing in two places.
 
 That last row is read live rather than taken from the alert log, and the difference matters. Every other alert records a moment — a price was reached — and stays true afterwards, so showing it for three days is right. An unguarded position is a state: once the exits are placed the alert is stale, and nothing retracts it. So the alert stays in the log as a record of what happened, and the block above is driven by the live check, which clears itself the moment the exits go on.
 
-A big move or a volume spike is information, not a prompt, so those stay off this list and on the Alerts page. When there is nothing to decide, the page says so plainly rather than showing an empty box.
+A big move or a volume spike is information, not a prompt, so those stay off this list and sit lower down the book page with the rest of the alerts. When there is nothing to decide, the page says so plainly rather than showing an empty box.
 
 Below that: the agent's account — its equity, and the percentage return against the $10,000 it started with — plus the signal win rate and how many signals are still maturing. The win rate shows a raw count instead of a percentage until about 20 signals have resolved, because three wins in four reads as 75% and means nothing.
 

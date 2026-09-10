@@ -25,9 +25,10 @@ When something needs correcting, the route is deliberate: write down what change
 | 12:45 | The market regime line — VIX, SPY against its 200-day average, the yield curve |
 | 13:00 | Earnings check, which analyses anything reporting soon |
 | **whenever it asked** | **The agent sets every one of its own passes.** It names the next time, and that time becomes a real alarm. Minimum 5 minutes, maximum 4 days, any hour |
-| 20:55 | A last pass before the close, if it has not just had one |
+| **15:55 ET** | A last pass before the close, if it has not just had one. Read off the Eastern close rather than the clock above, so it does not drift by an hour twice a year |
 | every 15 min | The watchdog: big moves, volume spikes, breached stops, reached targets |
 | 21:30 | Grading, then the journal is rewritten |
+| Fri 23:00 | The weekly digest: the week's outcomes, the win-rate trend, and the book |
 
 **Nothing is analysed on a schedule, holdings included.** There was a morning sweep that analysed the whole watchlist every day; it ended on 2026-09-08. The agent now commissions each analysis itself, pays $0.05 for it, and gets it back within the hour. What the table above still holds is the small set of things a clock is genuinely better at than a decision: a macro reading, an earnings calendar check, a price watchdog, and the grading of past calls.
 

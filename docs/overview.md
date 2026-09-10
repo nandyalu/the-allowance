@@ -11,15 +11,16 @@
        │              │               │
        ▼              ▼               ▼
  TradingAgents   Rule-based       SQLite (data/trading.db)
- (local LLM      market logic     signals · outcomes · reports
- via Ollama)     (no LLM):        the agent's book and its runs
+ (the LLM        market logic     signals · outcomes · reports
+ pipeline)       (no LLM):        the agent's book and its runs
  analysis        watchdog,        alerts · bar cache · settings
  pipeline        regime, grading,
                  the agent
        │              │
        ▼              ▼
-   Ollama pool    Market data: Webull real-time quotes when
-   (shared GPU)   configured, yfinance for everything else
+  A local pool    Market data: Webull first for quotes and
+  or a hosted     daily bars when configured, yfinance as
+  API endpoint    the fallback and for the earnings calendar
 ```
 
 Two kinds of intelligence run here, and the bot keeps them separate on purpose.
@@ -50,7 +51,7 @@ The two are for different jobs, and neither is a lesser version of the other.
 
 **Discord takes no orders.** There are no slash commands — the app had twenty-three and all were removed on 2026-09-01. A control that lets a person nudge the book puts a second decision-maker in the record.
 
-**The dashboard tells you what is happening and what already happened.** It is where the price chart, the analysis, the signals, the alerts, and the agent's fills sit on one time axis — plus the Events page, which keeps the prompt the agent saw and the answer it gave, word for word.
+**The dashboard tells you what is happening and what already happened.** It is where the price chart, the analysis, the signals, the alerts, and the agent's fills sit on one time axis — plus the Decisions page, which keeps the prompt the agent saw and the answer it gave, word for word.
 
 The dashboard needs no Discord account, and Discord needs no dashboard. Run either, or both.
 
@@ -142,7 +143,7 @@ Either can fire without the other, and each fires at most once, so neither hides
 
 ## Trade horizon
 
-Every analysis runs at one of two horizons, set with `/horizon` or on the settings page.
+Every analysis runs at one of two horizons, set on the settings page.
 The horizon reaches the analysis prompts, so it changes what the model looks at, and it sets both grading parameters.
 
 | | Swing | Position |
@@ -161,7 +162,7 @@ It does mean a scorecard covering both horizons is comparing two different quest
 
 ## The analysis model
 
-Every analysis runs on one LLM, chosen with `/model` or on the settings page, from whatever the configured endpoint has pulled.
+Every analysis runs on one LLM, chosen on the settings page, from whatever the configured endpoint serves.
 The default is the model the stack's `TRADINGAGENTS_DEEP_THINK_LLM` names, so leaving the setting alone changes nothing.
 
 Each signal records the model that produced it, and the scorecard grows a "By model" table as soon as a second model has resolved signals.
@@ -352,8 +353,8 @@ Why the agent tends to wait for the open: Webull rejects a market order outright
 The broker's screener suggests candidates: liquid names you do not already follow, over $5 and over a million shares traded, that have not moved more than 30% in the day.
 That last filter is the one that matters. A raw screen is full of the day's pumps — one returned a stock up 927% — and the price floor alone does not catch them, because the pump is what lifted the price over the floor.
 
-Nothing is followed automatically. An analysis costs about seven minutes of GPU and $0.05 out of the agent's own budget every time it orders one, so watching a ticker is a real, recurring cost rather than a free option — which makes adding one a decision rather than a default.
-See them on the Tickers page, with `/candidates`, or in the weekly digest post.
+Nothing is followed automatically. An analysis costs about nineteen minutes of GPU and $0.05 out of the agent's own budget every time it orders one, so watching a ticker is a real, recurring cost rather than a free option — which makes adding one a decision rather than a default.
+See them on the Research page or in the weekly digest post.
 
 ## The daily schedule (all times UTC, weekdays unless noted)
 
@@ -371,7 +372,8 @@ A handful of jobs still run on a clock; everything else is the agent's own choic
 ## Data sources
 
 - **Webull OpenAPI**: gives real-time snapshot quotes for every "price right now" check — the agent's fills, alert checks, book values. This needs a stock-quotes market-data subscription on the account. Without that subscription, or after any failure, the app falls back to yfinance automatically. Webull also takes the agent's orders, **on the sandbox only** — the agent refuses to run when the app holds production credentials.
-- **yfinance**: provides all historical bars (evaluation windows, ATR, the 200-day average, volume baselines), the earnings calendar, the VIX and treasury-yield indices, and the quote fallback.
+  Since 2026-09-08 Webull is also tried **first** for daily history, and it serves the 1-minute bars behind the intraday chart. Its history endpoint pages back with no real depth ceiling — over 2,000 bars deep in testing.
+- **yfinance**: the fallback for daily bars, and the sole source of the earnings calendar, the VIX and treasury-yield indices, and the quote fallback. It is kept rather than removed because it is what already produces this app's "possibly delisted" false positives and its rate-limit refusals, and a Webull outage must not take the whole daily cache down with it.
 
 ## Storage
 

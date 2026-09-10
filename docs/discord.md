@@ -35,7 +35,7 @@ Each alert posts at most once a day. A target alert posts once ever, per signal.
 
 ## What Discord does not post
 
-**The analyses themselves.** Each one runs to thousands of words and several arrive a morning. They are read on the Signals page, where they can be scrolled, compared, and opened beside the decision that used them.
+**The analyses themselves.** Each one runs to thousands of words. They are read on the Research page, where they can be scrolled, compared, and opened beside the decision that used them.
 
 ## When the agent asks for something
 
