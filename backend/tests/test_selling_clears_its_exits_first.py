@@ -208,4 +208,4 @@ def test_the_affordable_count_leaves_room_for_the_margin():
     prompt = agent.build_prompt(book, [_Signal()], {"AAPL": 100.0})
 
     # 1000 / 100 is 10; 1000 / 102 is 9.
-    assert "afford 9 share(s)" in prompt
+    assert "| 9 share(s) |" in prompt

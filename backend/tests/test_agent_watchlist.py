@@ -77,9 +77,9 @@ def test_held_and_watched_only_are_marked_apart(watching):
         watchlist=watchlist, max_watchlist=4,
     )
 
-    assert "- AAA: held," in prompt
-    assert "- BBB: watched only," in prompt
-    assert "- CCC: watched only," in prompt
+    assert "| AAA | held |" in prompt
+    assert "| BBB | watched |" in prompt
+    assert "| CCC | watched |" in prompt
 
 
 def test_a_full_watchlist_says_so_rather_than_waiting_to_refuse(watching):
@@ -146,7 +146,7 @@ def test_signals_do_not_rebind_the_research_price_either(watching):
     )
 
     assert "order costs $0.05 and runs right after this pass" in prompt
-    assert "now $180.00" in prompt
+    assert "| $180.00 |" in prompt
 
 
 # --- what Python enforces ------------------------------------------------------
@@ -373,7 +373,7 @@ def test_a_never_analysed_ticker_says_so(watching):
         _book(), [], {"AAA": 50.0}, watchlist=["AAA"], max_watchlist=4,
     )
 
-    assert "- AAA: watched only, now $50.00. Never analysed." in prompt
+    assert "| AAA | watched | $50.00 | never | never | never | never |" in prompt
 
 
 def test_a_previously_analysed_ticker_shows_its_staleness(watching, monkeypatch):
@@ -389,10 +389,10 @@ def test_a_previously_analysed_ticker_shows_its_staleness(watching, monkeypatch)
         _book(), [], {"AAA": 368.36}, watchlist=["AAA"], max_watchlist=4,
     )
 
-    line = next(l for l in prompt.splitlines() if l.startswith("- AAA:"))
-    assert "now $368.36" in line
-    assert "Last analysed 2026-09-01 at $340.00" in line
-    assert "+8.3% since" in line
+    line = next(l for l in prompt.splitlines() if l.startswith("| AAA |"))
+    assert "| $368.36 |" in line
+    assert "| 2026-09-01 | $340.00 |" in line
+    assert "+8.3%" in line
     assert "Overweight" in line
 
 
@@ -407,10 +407,10 @@ def test_a_ticker_with_no_live_price_says_unavailable_not_unanalysed(watching, m
 
     prompt = agent.build_prompt(_book(), [], {}, watchlist=["AAA"], max_watchlist=4)
 
-    line = next(l for l in prompt.splitlines() if l.startswith("- AAA:"))
-    assert "price unavailable" in line
+    line = next(l for l in prompt.splitlines() if l.startswith("| AAA |"))
+    assert "| unavailable |" in line
     # No live price means no percentage move can be computed.
-    assert "% since" not in line
+    assert "%" not in line
 
 
 # --- an empty balance ----------------------------------------------------------
@@ -497,7 +497,8 @@ class _Sig:
 
 def _signal_line(cash: float, price: float = 36.51) -> str:
     prompt = agent.build_prompt(_book(cash=cash), [_Sig()], {"SMCI": price})
-    return next(l for l in prompt.splitlines() if l.startswith("- SMCI"))
+    # A table row since 2026-09-10, not a dashed sentence.
+    return next(l for l in prompt.splitlines() if l.startswith("| SMCI |"))
 
 
 def test_a_negative_balance_does_not_offer_negative_shares():
@@ -506,16 +507,16 @@ def test_a_negative_balance_does_not_offer_negative_shares():
     line = _signal_line(cash=-8.0)
 
     assert "-1 share(s)" not in line
-    assert "You cannot afford any at $36.51 with $-8.00 cash." in line
+    assert "none, too dear" in line
 
 
 def test_an_empty_balance_says_it_cannot_afford_any():
-    assert "cannot afford any" in _signal_line(cash=0.0)
+    assert "none, too dear" in _signal_line(cash=0.0)
 
 
 def test_a_balance_below_one_share_says_the_same():
     """The boundary the old check got right and the negative case did not."""
-    assert "cannot afford any" in _signal_line(cash=20.0)
+    assert "none, too dear" in _signal_line(cash=20.0)
 
 
 def test_a_balance_that_buys_shares_still_states_the_count():
@@ -523,4 +524,4 @@ def test_a_balance_that_buys_shares_still_states_the_count():
     of cash. Fixing the negative case must not lose the count."""
     line = _signal_line(cash=100.0)
 
-    assert "you can afford 2 share(s)" in line
+    assert "| 2 share(s) |" in line

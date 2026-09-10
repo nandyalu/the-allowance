@@ -63,7 +63,11 @@ def next_open(now: datetime.datetime | None = None) -> datetime.datetime:
 def describe(now: datetime.datetime | None = None) -> str:
     """One line, first in the prompt."""
     here = now_et(now)
-    stamp = here.strftime("%A %-d %B, %-I:%M %p").replace(" 0", " ")
+    # The year is stated, not implied. The agent's own reasoning showed it
+    # working out which year it was from a date that never said — a model's
+    # training cut-off is the only other thing it has to go on, and guessing
+    # from that is how a stale one becomes an assumption about the market.
+    stamp = here.strftime("%A %-d %B %Y, %-I:%M %p").replace(" 0", " ")
     left = minutes_to_close(now)
     if here.weekday() >= 5:
         return f"It is {stamp} Eastern. The market is closed for the weekend."

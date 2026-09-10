@@ -573,24 +573,30 @@ def build_prompt(
     lines.append("")
 
     if signals:
-        lines.append("Recent analyst signals:")
+        # **A table, not a sentence.** The prose version ran "now $107.10,
+        # suggested entry $106.24" together, and the agent's own reasoning
+        # showed it working out which price was which. Named columns say it
+        # once, and the header says outright what "now" and "at analysis"
+        # mean, because those two are the pair that was being confused.
+        lines += [
+            "Recent analyst signals. **Price now** is today's live price; **At analysis** is what",
+            "it cost when the analyst looked. **Entry/Stop/Target** are the analyst's proposed",
+            "levels, not orders that exist.",
+            "",
+            "| Ticker | Analysed | Decision | Price now | At analysis | Entry | Stop | Target |"
+            " Chance | R:R | You could buy | Why it ran |",
+            "|---|---|---|---|---|---|---|---|---|---|---|---|",
+        ]
         for s in signals:
             # Also kept off `price`, for the same reason as the holdings loop.
             live = prices.get(s.ticker)
-            price_text = f"${live:,.2f}" if live is not None else "price unavailable"
-            entry = f", suggested entry ${s.entry_price:,.2f}" if s.entry_price else ""
-            stop = f", stop ${s.stop_loss:,.2f}" if s.stop_loss else ""
-            target = f", target ${s.price_target:,.2f}" if s.price_target else ""
+            money = lambda v: f"${v:,.2f}" if v else "—"
+            price_text = f"${live:,.2f}" if live is not None else "unavailable"
             # How good the analyst thought the bet was, not merely which way it
             # pointed. Without these every Buy reads as equally good and the
             # choice between them comes down to what happens to be affordable.
-            conviction = ""
-            if s.win_probability is not None:
-                conviction += f", {s.win_probability:.0f}% chance of working"
-            if s.risk_reward is not None:
-                conviction += f", risk/reward {s.risk_reward:.1f} to 1"
-            if s.expected_value_r is not None:
-                conviction += f", expected value {s.expected_value_r:+.2f}R"
+            chance = f"{s.win_probability:.0f}%" if s.win_probability is not None else "—"
+            rr = f"{s.risk_reward:.1f}:1" if s.risk_reward is not None else "—"
             # Computed here, not left to the model: the affordable count is the
             # arithmetic it actually got wrong.
             if live:
@@ -600,13 +606,9 @@ def build_prompt(
                 # branch now tests for a positive count rather than a non-zero
                 # one, because those differ only when the answer is nonsense.
                 affordable = max(0, int(book.cash // (live * _BUYING_POWER_MARGIN)))
-                afford_text = (
-                    f" With your ${book.cash:,.2f} cash you can afford {affordable} share(s)."
-                    if affordable > 0
-                    else f" You cannot afford any at ${live:,.2f} with ${book.cash:,.2f} cash."
-                )
+                afford_text = f"{affordable} share(s)" if affordable > 0 else "none, too dear"
             else:
-                afford_text = " No price, so it cannot be bought today."
+                afford_text = "no price"
             # Why this analysis exists. A signal produced because the stock
             # just moved sharply is the analyst reacting to a move already in
             # the price; a scheduled one is not reacting to anything. Those
@@ -615,11 +617,21 @@ def build_prompt(
             # honest value, and inventing one would be a guess in the record.
             # getattr, because several tests pass signal-shaped stand-ins
             # rather than the model, the same way the Decision unpacking does.
-            because = _TRIGGER_PHRASE.get(getattr(s, "trigger", None) or "", "")
+            because = _TRIGGER_PHRASE.get(getattr(s, "trigger", None) or "", "").strip() or "—"
             lines.append(
-                f"- {s.ticker} on {s.signal_date}: {s.decision} — now {price_text}"
-                f"{entry}{stop}{target}{conviction}.{because}{afford_text}"
+                f"| {s.ticker} | {s.signal_date} | {s.decision} | {price_text} | "
+                f"{money(getattr(s, 'price_at_signal', None))} | {money(s.entry_price)} | "
+                f"{money(s.stop_loss)} | {money(s.price_target)} | {chance} | {rr} | "
+                f"{afford_text} | {because} |"
             )
+        # Expected value is the analyst's own derivation from the levels above,
+        # so it sits under the table rather than adding a column that is empty
+        # for most rows.
+        evs = [f"{s.ticker} {s.expected_value_r:+.2f}R" for s in signals
+               if getattr(s, "expected_value_r", None) is not None]
+        if evs:
+            lines.append("")
+            lines.append("Expected value, where the analyst gave one: " + ", ".join(evs) + ".")
     else:
         lines.append("No new signals today.")
 
@@ -700,25 +712,36 @@ def build_prompt(
         # second kind can be dropped, and hiding that invites orders Python
         # refuses.
         held_tickers = {h.ticker for h in book.holdings}
-        lines += ["", f"You track {len(watchlist)} of at most {max_watchlist} tickers:"]
+        # A table for the same reason the signals are one: the prose ran the
+        # live price and the price at the last analysis into one sentence, and
+        # "moved since" is a comparison between exactly those two.
+        lines += [
+            "",
+            f"You track {len(watchlist)} of at most {max_watchlist} tickers. **Moved since** is",
+            "today's price against the price when it was last analysed — a large move on a stale",
+            "analysis is the signal that a fresh look may be worth paying for.",
+            "",
+            "| Ticker | Held? | Price now | Last analysed | Price then | Moved since | It said |",
+            "|---|---|---|---|---|---|---|",
+        ]
         for ticker in sorted(watchlist):
             live = prices.get(ticker)
-            price_text = f"${live:,.2f}" if live is not None else "price unavailable"
-            status = "held" if ticker in held_tickers else "watched only"
+            price_text = f"${live:,.2f}" if live is not None else "unavailable"
+            status = "held" if ticker in held_tickers else "watched"
             recent = db.get_recent_signals(ticker, limit=1)
+            when = then = move = said = "never"
             if recent and recent[0].price_at_signal:
                 last = recent[0]
-                move = ""
+                when = str(last.signal_date)
+                then = f"${last.price_at_signal:,.2f}"
+                said = last.decision
+                move = "—"
                 if live is not None:
                     pct = (live - last.price_at_signal) / last.price_at_signal * 100
-                    move = f", {pct:+.1f}% since"
-                last_text = (
-                    f"Last analysed {last.signal_date} at ${last.price_at_signal:,.2f}"
-                    f"{move} — {last.decision}"
-                )
-            else:
-                last_text = "Never analysed"
-            lines.append(f"- {ticker}: {status}, now {price_text}. {last_text}.")
+                    move = f"{pct:+.1f}%"
+            lines.append(
+                f"| {ticker} | {status} | {price_text} | {when} | {then} | {move} | {said} |"
+            )
         if len(watchlist) >= max_watchlist:
             lines.append(
                 "That is the limit, so nothing new can be tracked until you stop "

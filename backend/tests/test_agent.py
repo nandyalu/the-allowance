@@ -292,7 +292,7 @@ def test_the_prompt_states_what_is_affordable_rather_than_implying_it():
 
     prompt = agent.build_prompt(book, [S()], {"AAA": 30.0})
 
-    assert "afford 3 share(s)" in prompt
+    assert "| 3 share(s) |" in prompt
 
 
 def test_the_prompt_says_when_nothing_is_affordable():
@@ -305,7 +305,7 @@ def test_the_prompt_says_when_nothing_is_affordable():
         entry_price = stop_loss = price_target = None
         win_probability = risk_reward = expected_value_r = None
 
-    assert "cannot afford any" in agent.build_prompt(book, [S()], {"AAA": 97.83})
+    assert "none, too dear" in agent.build_prompt(book, [S()], {"AAA": 97.83})
 
 
 def test_the_prompt_explains_that_selling_funds_a_buy():
@@ -1083,9 +1083,9 @@ def test_a_signal_carries_how_good_the_bet_was():
 
     prompt = agent.build_prompt(_book(), [sig], {"AAA": 100.0})
 
-    assert "64% chance of working" in prompt
-    assert "risk/reward 2.4 to 1" in prompt
-    assert "expected value +0.81R" in prompt
+    assert "| 64% |" in prompt
+    assert "| 2.4:1 |" in prompt
+    assert "+0.81R" in prompt
 
 
 def test_a_negative_expected_value_keeps_its_sign():
@@ -1094,7 +1094,7 @@ def test_a_negative_expected_value_keeps_its_sign():
     sig = _Sig()
     sig.expected_value_r = -0.35
 
-    assert "expected value -0.35R" in agent.build_prompt(_book(), [sig], {"AAA": 100.0})
+    assert "-0.35R" in agent.build_prompt(_book(), [sig], {"AAA": 100.0})
 
 
 def test_a_signal_without_conviction_numbers_says_nothing_about_them():
@@ -1102,8 +1102,8 @@ def test_a_signal_without_conviction_numbers_says_nothing_about_them():
     has a view — and an absent number must not read as a zero."""
     prompt = agent.build_prompt(_book(), [_Sig()], {"AAA": 100.0})
 
-    assert "chance of working" not in prompt
-    assert "expected value" not in prompt.split("Rules:")[0]
+    assert "| 64% |" not in prompt
+    assert "Expected value, where" not in prompt.split("Rules:")[0]
 
 
 def test_the_rules_explain_what_the_numbers_mean():

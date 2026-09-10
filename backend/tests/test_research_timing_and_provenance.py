@@ -82,7 +82,9 @@ def _line(trigger):
     sig = _Sig()
     sig.trigger = trigger
     prompt = agent.build_prompt(_book(), [sig], {"AAA": 10.0})
-    return next(l for l in prompt.splitlines() if l.startswith("- AAA"))
+    # The signals section became a table on 2026-09-10, so a row starts
+    # with the pipe rather than a dash.
+    return next(l for l in prompt.splitlines() if l.startswith("| AAA |"))
 
 
 def test_a_move_triggered_signal_says_so():
@@ -110,4 +112,4 @@ def test_an_unrecorded_trigger_says_nothing():
     one would put a guess in the record the agent reads as fact."""
     line = _line(None)
     assert "Run " not in line
-    assert line.startswith("- AAA on 2026-09-03: Buy")
+    assert line.startswith("| AAA | 2026-09-03 | Buy |")
