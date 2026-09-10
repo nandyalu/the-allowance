@@ -36,15 +36,65 @@ export class CopyButton {
 
   protected async copy(): Promise<void> {
     const value = this.text() ?? '';
-    try {
-      if (!navigator.clipboard) throw new Error('no clipboard');
-      await navigator.clipboard.writeText(value);
-      this.state.set('done');
-    } catch {
-      // http on a LAN address has no clipboard API, and a permission can be
-      // refused. Say which, rather than looking broken.
-      this.state.set('failed');
-    }
+    this.state.set((await writeToClipboard(value)) ? 'done' : 'failed');
     setTimeout(() => this.state.set('idle'), 2000);
+  }
+}
+
+/**
+ * Copy text, in a secure context or not.
+ *
+ * **`navigator.clipboard` does not exist over plain http**, and that is the
+ * normal case for this project rather than an edge one: a self-hosted copy is
+ * reached at `http://192.168.x.x:8080`, which is not a secure origin, so the
+ * whole Clipboard API is absent. A button that only works on the published
+ * https site would be broken for everyone running their own.
+ *
+ * So the modern call is tried first and a textarea plus `document.exec
+ * Command('copy')` catches the rest. That call is deprecated and still
+ * implemented everywhere, and it is the only thing that works here.
+ */
+async function writeToClipboard(value: string): Promise<boolean> {
+  // isSecureContext is what actually decides whether the API is there, and
+  // checking it avoids a thrown promise on every insecure load.
+  if (window.isSecureContext && navigator.clipboard) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return true;
+    } catch {
+      // A refused permission falls through to the same fallback.
+    }
+  }
+  return legacyCopy(value);
+}
+
+/** The pre-Clipboard-API way. Deprecated, universally implemented, and the
+ * only one that works on a plain-http origin. */
+function legacyCopy(value: string): boolean {
+  const area = document.createElement('textarea');
+  area.value = value;
+  // Off-screen rather than hidden: `display: none` and `visibility: hidden`
+  // cannot be selected, so the copy silently produces nothing. Fixed rather
+  // than absolute so a long value cannot extend the page and move the scroll.
+  area.setAttribute('readonly', '');
+  area.style.position = 'fixed';
+  area.style.top = '0';
+  area.style.left = '-9999px';
+  area.style.opacity = '0';
+  document.body.appendChild(area);
+
+  const previous = document.activeElement as HTMLElement | null;
+  try {
+    area.select();
+    // iOS ignores select() on a readonly field and needs an explicit range.
+    area.setSelectionRange(0, value.length);
+    return document.execCommand('copy');
+  } catch {
+    return false;
+  } finally {
+    document.body.removeChild(area);
+    // Put focus back where the reader left it, so copying does not lose their
+    // place on the page.
+    previous?.focus?.();
   }
 }
