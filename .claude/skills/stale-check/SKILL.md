@@ -51,25 +51,19 @@ Rules:
 
 **A wrong quotation here is worse than none, because this file is read instead of the code.**
 
+**The exact half is a test now**, not a step here: `backend/tests/test_the_documented_prompt_is_the_real_prompt.py` pins the system message, the opener, and the three rules that exist because of a live failure. Run the suite and it tells you. What is left below is the fuzzy half — the rules list, which CLAUDE.md paraphrases, so it needs a person reading hits rather than an assertion.
+
 ```sh
 python3 - <<'EOF'
 import re
-a = open("backend/services/agent.py").read(); c = open("CLAUDE.md").read()
-flat = re.sub(r"\s+", " ", c)
-
-# The two exact strings. These can be asserted rather than eyeballed.
-for label, pat in (("SYSTEM_PROMPT", r'SYSTEM_PROMPT = \(\n((?:\s+"[^"]*"\n)+)'),
-                   ("opener", r'"(You manage a small[^"]*)"')):
-    m = re.search(pat, a)
-    text = re.sub(r"\s+", " ", " ".join(re.findall(r'"([^"]*)"', m.group(0)))).strip() if m else ""
-    print(f"[{label}] {'ok' if text and text[:45] in flat else 'DRIFTED — fix CLAUDE.md'}")
-
-# Rule openers, minus the data-line templates.
+a = open("backend/services/agent.py").read()
+# Strip blockquote markers, or wrapped quotations never match.
+c = re.sub(r"\s+", " ", re.sub(r"^\s*>\s?", "", open("CLAUDE.md").read(), flags=re.M))
 rules = [r for r in re.findall(r'"(- [^"]{10,})"', a) if not r.startswith("- {")]
-print(f"\n{len(rules)} rules in the prompt. Not found in CLAUDE.md by opening words:")
+print(f"{len(rules)} rules in the prompt. Not found in CLAUDE.md by opening words:")
 for r in rules:
     key = re.sub(r"\s+", " ", r[2:]).split("{")[0].strip()[:38]
-    if len(key) > 12 and key not in flat:
+    if len(key) > 12 and key not in c:
         print("  ", r[2:88])
 EOF
 ```

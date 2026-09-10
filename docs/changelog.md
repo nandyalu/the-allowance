@@ -8,6 +8,7 @@ Entries are one or two lines: what changed, and why. Newest first.
 
 ## 2026-09-10
 
+- **Tests** — Four invariants that were held by prose alone are now pinned by tests: every order path asserts the sandbox and the order API is reachable from one module only; the write surface is exactly the two routes that decide nothing; CLAUDE.md's quoted prompt matches the code, and the three rules that exist because of a live failure are still in it; and no module awaits a single-ticker analysis inside a loop. Each was verified by breaking the invariant and watching the test catch it.
 - **Tests** — The frontend suite ran with eight unhandled errors, dismissed for weeks as a `lightweight-charts` quirk. jsdom does not implement `matchMedia`; `src/test-setup.ts` polyfills it and the count is zero. The real gain is that `chart-theme.ts` calls it unguarded, so the theme path had been throwing on every chart test and is now exercised.
 - **Docs** — Every page audited against the code. Three instructions could not have worked: the setup page named a variable the app never reads (`LLM_BACKEND_URL`, against the real `TRADINGAGENTS_LLM_BACKEND_URL`), the README and two pages pointed at a compose file that `.gitignore` excludes, and the now-required `WEBULL_ACCOUNT_ID` appeared nowhere at all.
 - **Setup** — `compose.example.yaml` is tracked, and `.env.example` rewritten. The old one still offered `DISCORD_BOT_TOKEN` for a bot deleted on 2026-09-01 and marked `WEBULL_SANDBOX` optional.
