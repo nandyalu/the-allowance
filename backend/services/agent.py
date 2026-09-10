@@ -506,7 +506,7 @@ def build_prompt(
     if recent_changes:
         lines += [*recent_changes, ""]
     lines += [
-        f"Your account is ${book.budget:,.2f} in total. That is all you will ever have —",
+        f"Your account is ${book.budget:,.2f} in total. That is all you will ever have — "
         "there is no more money coming.",
         f"Of it, ${book.cash:,.2f} is uninvested and available to spend right now.",
         f"Total equity: ${book.equity:,.2f} ({book.return_pct:+.1f}% against the account)",
@@ -518,10 +518,11 @@ def build_prompt(
     # and was never told about. Silent at zero, which is the ordinary case.
     if unsettled_cash:
         lines += [
-            f"Of that cash, ${unsettled_cash:,.2f} came from sales that have not settled yet.",
-            "You can spend it, but a buy made with unsettled money cannot carry its stop and",
-            "take-profit in the same order — they get placed separately, and that second step",
-            "can fail and leave the position unprotected. Settled money is the safer purchase.",
+            f"Of that cash, ${unsettled_cash:,.2f} came from sales that have not settled "
+            "yet. You can spend it, but a buy made with unsettled money cannot carry its stop "
+            "and take-profit in the same order — they get placed separately, and that second "
+            "step can fail and leave the position unprotected. Settled money is the safer "
+            "purchase.",
         ]
     lines.append("")
 
@@ -579,9 +580,9 @@ def build_prompt(
         # once, and the header says outright what "now" and "at analysis"
         # mean, because those two are the pair that was being confused.
         lines += [
-            "Recent analyst signals. **Price now** is today's live price; **At analysis** is what",
-            "it cost when the analyst looked. **Entry/Stop/Target** are the analyst's proposed",
-            "levels, not orders that exist.",
+            "Recent analyst signals. **Price now** is today's live price; **At analysis** is "
+            "what it cost when the analyst looked. **Entry/Stop/Target** are the analyst's "
+            "proposed levels, not orders that exist.",
             "",
             "| Ticker | Analysed | Decision | Price now | At analysis | Entry | Stop | Target |"
             " Chance | R:R | You could buy | Why it ran |",
@@ -717,9 +718,9 @@ def build_prompt(
         # "moved since" is a comparison between exactly those two.
         lines += [
             "",
-            f"You track {len(watchlist)} of at most {max_watchlist} tickers. **Moved since** is",
-            "today's price against the price when it was last analysed — a large move on a stale",
-            "analysis is the signal that a fresh look may be worth paying for.",
+            f"You track {len(watchlist)} of at most {max_watchlist} tickers. **Moved since** "
+            "is today's price against the price when it was last analysed — a large move on a "
+            "stale analysis is the signal that a fresh look may be worth paying for.",
             "",
             "| Ticker | Held? | Price now | Last analysed | Price then | Moved since | It said |",
             "|---|---|---|---|---|---|---|",
@@ -877,7 +878,29 @@ def build_prompt(
         ' {"side": "note", "reason": "what would help you decide better"}]}',
         "Use an empty list for orders if you want to hold everything.",
     ]
-    return "\n".join(lines)
+    return "\n".join(_unwrapped(lines))
+
+
+def _unwrapped(lines: list[str]) -> list[str]:
+    """Fold a rule's continuation lines back into one line.
+
+    The rules are written wrapped in the source so the file stays readable,
+    and that wrapping was reaching the model: a rule arrived as five lines,
+    four of which begin mid-sentence. This repo already forbids hard-wrapping
+    prose in Markdown for the same reason — a sentence split across lines
+    renders and reads as though it were several.
+
+    **Two spaces marks a continuation; one does not.** The JSON example at the
+    end of the prompt is indented by one, and folding it would destroy the
+    shape the model is being asked to copy.
+    """
+    out: list[str] = []
+    for line in lines:
+        if line.startswith("  ") and not line.startswith("   ") and out and out[-1].strip():
+            out[-1] = out[-1].rstrip() + " " + line.strip()
+        else:
+            out.append(line)
+    return out
 
 
 def parse_decision(text: str) -> tuple[str, list[dict]]:

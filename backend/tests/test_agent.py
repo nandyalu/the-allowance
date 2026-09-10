@@ -2136,3 +2136,29 @@ def test_a_single_turn_pass_still_records_that_one_turn(monkeypatch):
 
     assert len(decision.turns) == 1
     assert decision.turns[0]["prompt"] == decision.prompt
+
+
+def test_no_rule_reaches_the_model_split_across_lines():
+    """A rule written wrapped in the source must arrive as one line.
+
+    The wrapping is there so agent.py stays readable, and it was reaching the
+    prompt: a rule arrived as five lines, four of them beginning mid-sentence.
+    This repo already forbids hard-wrapping prose in Markdown for the same
+    reason — a sentence split across lines reads as several.
+    """
+    prompt = agent.SYSTEM_PROMPT + "\n" + agent.build_prompt(
+        _book(cash=250.0, holdings=[("AAA", 5, 90.0)]), [], {"AAA": 97.0},
+        watchlist=["AAA"], max_watchlist=30, price=0.05, unsettled_cash=120.0,
+    )
+
+    wrapped = [l for l in prompt.splitlines() if l.startswith("  ")]
+
+    assert not wrapped, f"{len(wrapped)} continuation line(s): {wrapped[:2]}"
+
+
+def test_the_json_example_keeps_its_shape():
+    """The fold must not touch it. Its lines are indented by one space, and
+    flattening them would destroy the shape the model is asked to copy."""
+    prompt = agent.build_prompt(_book(), [], {})
+
+    assert any(l.startswith(' {"ticker": "MSFT"') for l in prompt.splitlines())

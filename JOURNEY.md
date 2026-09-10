@@ -66,6 +66,8 @@ Newest first.
 
 **Measured rather than assumed, on the same data through the deployed model.** Both prompts were built from one database copy, so only the formatting differed, and both went to `gemma4-e4b-qat-128k` back to back. The prompt grew 3.9% and the model's output fell: **completion 2,396 to 2,006 tokens (-16%)**, reasoning 5,231 to 4,878 characters, wall clock unchanged at 73 and 75 seconds. Both runs reached the same decision — buy 2 CRWV — so the format changed how much working-out it took, not what it concluded. **One run each, at temperature 1, is one sample and not a result.**
 
+**Every line the model receives is now one complete thought.** The rules are wrapped in the source so `agent.py` stays readable, and that wrapping was reaching the prompt — a rule arrived as five lines, four of them beginning mid-sentence. This repo already forbids hard-wrapping prose in Markdown for exactly that reason. Continuation lines are folded before the prompt is sent; the JSON example is indented by one space rather than two and is left alone.
+
 **The rules split by whether they vary, not by importance.** A rule holding a number from this pass — the cash limit, the watchlist cap, the horizon — has to be rebuilt every time, so it stays in the user message. The rest are constant across every pass of the experiment and were being re-sent each time.
 
 **2026-09-10 — the agent can ask to read an analysis it has already paid for, and the record now holds every turn of a pass.** It saw one line per signal — the decision and the levels — and never the reasoning, so a Hold that meant "keep a fifth of the position and defend it below 102.70" reached it as the same word as a flat Hold. Naming a date lets it compare the analysis it bought on against today's.
