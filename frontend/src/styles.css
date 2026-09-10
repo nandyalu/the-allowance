@@ -2696,3 +2696,39 @@ table {
 .draft-note strong {
   color: var(--warn);
 }
+
+/* The first-run warning, shown above every page while a deployment cannot
+   trade. Warning-coloured rather than accent: unlike an agent note, this one
+   is a problem, and it is the only thing on the site that asks the reader to
+   go and change something.
+
+   The wrapper carries .page's own column and gutters. <main> is full width —
+   each view's .page is what centres its content — so a banner placed beside
+   the outlet has to repeat that or it runs edge to edge above centred text. */
+.banner-wrap {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: var(--sp-6) var(--sp-5) 0;
+  padding-left: max(var(--sp-5), env(safe-area-inset-left));
+  padding-right: max(var(--sp-5), env(safe-area-inset-right));
+}
+
+.setup-banner {
+  margin: 0;
+  padding: var(--sp-4) var(--sp-5);
+  background: var(--warn-soft);
+  border-left: 3px solid var(--warn);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  color: var(--text);
+  font-size: var(--t-sm);
+  line-height: var(--lh-normal);
+}
+
+/* The site's links are accent-coloured, which on a warning panel reads as a
+   second, competing colour. Inside the banner a link is part of the warning. */
+.setup-banner a {
+  color: var(--warn);
+  font-weight: 600;
+  text-decoration: underline;
+  white-space: nowrap;
+}

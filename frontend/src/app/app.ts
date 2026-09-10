@@ -12,6 +12,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter } from 'rxjs';
 
 import { SettingsService } from './core/services/settings.service';
+import { SetupService, shouldSendToSetup } from './core/services/setup.service';
 import { Logo } from './shared/logo';
 
 /** One destination in the sidebar. `icon` names a symbol in the sprite at the
@@ -43,6 +44,7 @@ export class App {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly settingsService = inject(SettingsService);
+  private readonly setupService = inject(SetupService);
 
   /** Two groups, six links.
    *
@@ -88,6 +90,20 @@ export class App {
    * dead end, not a security boundary. */
   protected readonly isPublic = signal(false);
 
+  /** Whether to warn that this deployment cannot run.
+   *
+   * Shown on every page rather than only on /setup, because the failure it
+   * describes is silent: a container comes up, serves an empty site, places
+   * no orders, and says why only in its logs. Never shown on the published
+   * copy, which is a static export with no environment to configure. */
+  protected readonly needsSetup = computed(() => {
+    const status = this.setupService.status();
+    if (this.isPublic() || status === null || status.ready) return false;
+    // Not on the setup page itself, where it announces what the reader is
+    // already looking at and pushes the actual content down a line.
+    return this.url().split('?')[0] !== '/setup';
+  });
+
   /** True once the reader has scrolled past the top. The masthead starts
    * generous — the name is the first thing a stranger needs — and compacts
    * once they are reading, where it is just taking screen.
@@ -121,6 +137,27 @@ export class App {
     );
   });
 
+  /** Send a never-started deployment to the setup page, once, on load.
+   *
+   * **Only on a first run**, which is why `first_run` exists as a separate
+   * fact from `ready`: a deployment that has never been switched on has
+   * nothing to show and every reason to be walked through setup, while one
+   * that is merely failing — an LLM endpoint down for ten minutes, say — must
+   * not have the book and the decisions yanked away from it mid-incident. The
+   * banner covers that case on every page instead.
+   *
+   * A redirect, not a guard. It fires once and the reader can navigate
+   * straight back out; nothing here traps a route.
+   */
+  private sendToSetupOnFirstRun(): void {
+    const send = shouldSendToSetup({
+      isPublic: this.isPublic(),
+      status: this.setupService.status(),
+      url: this.router.url,
+    });
+    if (send) void this.router.navigateByUrl('/setup');
+  }
+
   constructor() {
     afterNextRender(() => {
       const el = this.sentinel().nativeElement;
@@ -143,6 +180,7 @@ export class App {
       .load()
       .then(() => this.isPublic.set(this.settingsService.settings()?.public ?? false))
       .catch(() => this.isPublic.set(false));
+    void this.setupService.load().then(() => this.sendToSetupOnFirstRun());
     this.router.events
       .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
       .subscribe((e) => {

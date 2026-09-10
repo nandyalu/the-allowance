@@ -21,6 +21,7 @@ from backend.api.routes import (
     regime,
     scorecard,
     settings,
+    setup,
     signals,
     tickers,
     watchlist,
@@ -146,6 +147,7 @@ app.include_router(scorecard.router)
 app.include_router(digest.router)
 app.include_router(regime.router)
 app.include_router(settings.router)
+app.include_router(setup.router)
 app.include_router(alerts.router)
 app.include_router(jobs.router)
 app.include_router(agent.router)

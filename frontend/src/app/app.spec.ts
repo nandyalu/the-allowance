@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
 import { SettingsService } from './core/services/settings.service';
+import { SetupService, shouldSendToSetup } from './core/services/setup.service';
 import { App } from './app';
 
 /** The shell reads one thing from settings: whether this is the published copy. */
@@ -11,7 +12,19 @@ class SettingsServiceStub {
   async load(): Promise<void> {}
 }
 
+/** Whether this deployment can run, and whether it has ever been started. */
+class SetupServiceStub {
+  value: { ready: boolean; first_run: boolean; checks: [] } | null = {
+    ready: true,
+    first_run: false,
+    checks: [],
+  };
+  status = () => this.value as never;
+  async load(): Promise<void> {}
+}
+
 let settings: SettingsServiceStub;
+let setup: SetupServiceStub;
 
 interface Shell {
   drawerOpen: () => boolean;
@@ -26,9 +39,14 @@ describe('App', () => {
     localStorage.clear();
     document.documentElement.removeAttribute('data-theme');
     settings = new SettingsServiceStub();
+    setup = new SetupServiceStub();
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideRouter([]), { provide: SettingsService, useValue: settings }],
+      providers: [
+        provideRouter([]),
+        { provide: SettingsService, useValue: settings },
+        { provide: SetupService, useValue: setup },
+      ],
     }).compileComponents();
   });
 
@@ -130,5 +148,47 @@ describe('App', () => {
 
     expect(links).not.toContain('/settings');
     expect(links).toContain('/book');
+  });
+});
+
+describe('first-run setup', () => {
+  const bare = { ready: false, first_run: true, checks: [] };
+
+  it('sends a never-started deployment to the setup page', () => {
+    // The case the page exists for: a fresh container serves a
+    // working-looking site with empty pages, and a banner is easy to miss.
+    expect(shouldSendToSetup({ isPublic: false, status: bare, url: '/' })).toBe(true);
+  });
+
+  it('leaves a running deployment where it is when something breaks', () => {
+    // An LLM endpoint down for ten minutes must not yank the book and the
+    // decisions away mid-incident. The banner covers this case instead.
+    const broken = { ready: false, first_run: false, checks: [] };
+    expect(shouldSendToSetup({ isPublic: false, status: broken, url: '/' })).toBe(false);
+  });
+
+  it('does not redirect once everything is configured', () => {
+    const ready = { ready: true, first_run: true, checks: [] };
+    expect(shouldSendToSetup({ isPublic: false, status: ready, url: '/' })).toBe(false);
+  });
+
+  it('does not redirect on the published copy', () => {
+    // A static export has no environment to configure and nothing to fix.
+    expect(shouldSendToSetup({ isPublic: true, status: bare, url: '/' })).toBe(false);
+  });
+
+  it('says nothing when the setup status could not be read', () => {
+    expect(shouldSendToSetup({ isPublic: false, status: null, url: '/' })).toBe(false);
+  });
+
+  it('does not bounce a reader who asked for a page on purpose', () => {
+    // Only a bare landing on the root. Someone who deep-linked into the book,
+    // or who navigated to setup themselves, is left alone.
+    expect(shouldSendToSetup({ isPublic: false, status: bare, url: '/book' })).toBe(false);
+    expect(shouldSendToSetup({ isPublic: false, status: bare, url: '/setup' })).toBe(false);
+  });
+
+  it('still fires when the root carries a query string', () => {
+    expect(shouldSendToSetup({ isPublic: false, status: bare, url: '/?theme=dark' })).toBe(true);
   });
 });

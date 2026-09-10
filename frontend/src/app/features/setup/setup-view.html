@@ -1,0 +1,80 @@
+<section class="page">
+  <header class="page-head">
+    <div>
+      <h1>Setup</h1>
+      <p class="subtitle">
+        <strong>What this deployment still needs before it can run.</strong> Everything below is set
+        in the environment rather than here — secrets and safety guards stay outside the app, so
+        nothing on this page can change them. It tells you what is missing and what to paste.
+      </p>
+    </div>
+  </header>
+
+  @if (!status()) {
+    <div class="skeleton" style="height: 12rem"></div>
+  } @else {
+    @if (status()!.ready) {
+      <div class="empty">
+        <span class="empty-icon" aria-hidden="true">✅</span>
+        <strong>Ready.</strong>
+        <span>
+          Everything the agent needs is configured. Its decisions appear on
+          <a routerLink="/decisions">the decisions page</a> as it makes them.
+        </span>
+      </div>
+    } @else {
+      <p class="hint">
+        <strong>Not ready to trade.</strong> {{ outstanding() }} of {{ blocking().length }} required
+        things are missing. Add the lines below to your <code>.env</code>, then restart the
+        container — the app reads them at startup.
+      </p>
+    }
+
+    <ul class="notes-list">
+      @for (check of blocking(); track check.key) {
+        <li class="agent-note">
+          <p class="agent-note-label">{{ check.ready ? '✅' : '⚠️' }} {{ check.label }}</p>
+          <p class="agent-note-text">{{ check.detail }}</p>
+          <!-- Two kinds of fix, and they must not be confused: `fix` is
+               pasteable configuration and belongs in a code block; an action
+               is something to do in the app, and a sentence rendered as code
+               reads like something to copy. -->
+          @if (check.fix) {
+            <pre class="verbatim">{{ check.fix }}</pre>
+          }
+          @if (check.action_path) {
+            <p>
+              <a class="btn btn-sm" [routerLink]="check.action_path">{{ check.action_label }} →</a>
+            </p>
+          }
+        </li>
+      }
+    </ul>
+
+    <h2>Optional</h2>
+    <p class="hint">
+      Neither of these stops the agent. Both are free, and the second changes what the analysts can
+      actually read.
+    </p>
+    <ul class="notes-list">
+      @for (check of optional(); track check.key) {
+        <li class="agent-note">
+          <p class="agent-note-label">{{ check.ready ? '✅' : '○' }} {{ check.label }}</p>
+          <p class="agent-note-text">{{ check.detail }}</p>
+          <!-- Two kinds of fix, and they must not be confused: `fix` is
+               pasteable configuration and belongs in a code block; an action
+               is something to do in the app, and a sentence rendered as code
+               reads like something to copy. -->
+          @if (check.fix) {
+            <pre class="verbatim">{{ check.fix }}</pre>
+          }
+          @if (check.action_path) {
+            <p>
+              <a class="btn btn-sm" [routerLink]="check.action_path">{{ check.action_label }} →</a>
+            </p>
+          }
+        </li>
+      }
+    </ul>
+  }
+</section>

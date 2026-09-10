@@ -37,6 +37,14 @@ The entries below record what changed in the agent's behaviour and the reason fo
 
 Newest first.
 
+**2026-09-10 — a first-run page says what is missing, instead of leaving a self-hoster reading docs and container logs.** Everything this app needs to run was configured through environment variables discovered by reading documentation, and everything that went wrong announced itself only in a log line nobody was watching. A new deployment came up looking healthy and doing nothing, and finding out why meant `docker logs`.
+
+**`GET /api/setup` reports what is configured, and never what it is configured to.** Booleans and names only — `webull_credentials: true`, `llm_provider: "ollama"` — with no field anywhere that could carry a key. That is not tidiness, it is the whole security design: `snapshot_export.py` writes the settings payload to `settings.json` and pushes it to Cloudflare Pages, so any field that can hold a secret is a field that can publish one. A response that never reads a value cannot leak it, whatever anybody adds to the exporter later.
+
+**Secrets and guards stay in the environment, deliberately.** The obvious version of this feature puts the Webull keys on the settings page, and it was rejected twice over. A credential in `BotSetting` is a credential one careless `_dump()` away from a public website. And a guard the app can rewrite from a web page is not a guard: `WEBULL_SANDBOX` and `WEBULL_ACCOUNT_ID` are the code's own knowledge of what it is connected to, and the day they become editable from a browser is the day this stops being a simulation anybody can trust. **The page teaches; it does not store.** It shows the exact lines to paste and says to restart.
+
+**What it checks is what actually stops a deployment**, learned from this week rather than guessed: Webull credentials, the account id the fourth guard now requires, an LLM endpoint that answers, and whether the agent has ever been switched on. Each one is a way a container has already come up looking fine and doing nothing.
+
 **2026-09-10 — the experiment dates itself from the moment the agent is switched on, and the minute-bar backfill follows it.** Yesterday's fix made the start date an env var, which fixed the second container and left every future self-hoster to discover the variable. It is now stamped automatically: the first time `set_enabled(True)` runs with no date recorded, today's date is written to `BotSetting` and never overwritten.
 
 **"First enabled" is the right event and not an approximation of one.** The agent is off until somebody turns it on — `is_enabled()` reads a stored setting that starts absent — so switching it on is a deliberate act by a person, on a date they chose. That is already what this file says the start date means: the experiment starts when the agent can act, which is why 2026-09-02 and not the 1st.

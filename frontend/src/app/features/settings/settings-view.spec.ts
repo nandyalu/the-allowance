@@ -6,6 +6,7 @@ import { SettingsService } from '../../core/services/settings.service';
 import { SettingsView } from './settings-view';
 
 const SERVER_SETTINGS: Settings = {
+  experiment_start: '2026-09-02',
   horizon: 'position',
   llm_model: 'gemma4-e2b-96k',
   llm_model_choices: ['gemma4-e2b-96k', 'adityakale/kotakneo:latest'],

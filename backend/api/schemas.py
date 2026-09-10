@@ -288,6 +288,32 @@ class RegimeOut(OrmModel):
     emoji: str
 
 
+class SetupCheckOut(Schema):
+    """One requirement, and how to satisfy it.
+
+    Carries no value of anything: ``ready`` says whether a thing is
+    configured, never what it is configured to. See
+    backend/services/setup_check.py — this payload is safe to publish, and
+    stays that way only if no field here ever holds a secret.
+    """
+
+    key: str
+    label: str
+    ready: bool
+    blocking: bool  # False for the optional ones: Discord, FRED
+    detail: str
+    fix: str  # the literal lines to paste, empty once satisfied
+    # For the one requirement fixed in the app rather than the environment.
+    # A route, never a value — the no-secrets rule is unaffected.
+    action_path: str = ""
+    action_label: str = ""
+
+
+class SetupStatusOut(Schema):
+    ready: bool  # every blocking check passes
+    first_run: bool  # the agent has never been switched on
+    checks: list[SetupCheckOut] = []
+
 
 class SettingsOut(Schema):
     # The day THIS deployment's experiment began. Served rather than compiled

@@ -288,6 +288,17 @@
 </header>
 
 <main id="main">
+  @if (needsSetup()) {
+    <!-- Wrapped, because <main> is full-bleed and the page's own column comes
+         from .page inside each view — an unwrapped banner runs edge to edge
+         while everything under it is centred. -->
+    <div class="banner-wrap">
+      <p class="setup-banner">
+        <strong>This deployment is not ready to trade.</strong> Something it needs is missing, so
+        the agent will not place orders. <a routerLink="/setup">See what to set up →</a>
+      </p>
+    </div>
+  }
   <router-outlet />
 </main>
 

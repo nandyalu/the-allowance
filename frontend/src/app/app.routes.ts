@@ -82,6 +82,12 @@ export const routes: Routes = [
     path: 'preview',
     loadComponent: () => import('./features/preview/preview-view').then((m) => m.PreviewView),
   },
+  // Not in the nav: a deployment that is working never needs it, and a
+  // deployment that is not says so with a banner that links here.
+  {
+    path: 'setup',
+    loadComponent: () => import('./features/setup/setup-view').then((m) => m.SetupView),
+  },
   {
     path: 'settings',
     loadComponent: () => import('./features/settings/settings-view').then((m) => m.SettingsView),

@@ -231,6 +231,32 @@ export interface Regime {
   emoji: string;
 }
 
+/** One requirement, and how to satisfy it. Carries no configured value —
+ * `ready` says whether a thing is set, never what it is set to. */
+export interface SetupCheck {
+  key: string;
+  label: string;
+  ready: boolean;
+  /** False for the optional ones: Discord, FRED. */
+  blocking: boolean;
+  detail: string;
+  /** The literal lines to paste into .env. Empty once the check passes, and
+   * empty for anything fixed in the app rather than the environment. */
+  fix: string;
+  /** For the one requirement fixed in the app: a route to link to. A path,
+   * never a value. */
+  action_path: string;
+  action_label: string;
+}
+
+export interface SetupStatus {
+  /** Every blocking check passes. */
+  ready: boolean;
+  /** The agent has never been switched on here. */
+  first_run: boolean;
+  checks: SetupCheck[];
+}
+
 export interface Settings {
   /** The day THIS deployment's experiment began, "YYYY-MM-DD". Served rather
    * than compiled in, so a second container does not announce itself as being
