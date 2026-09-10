@@ -203,7 +203,7 @@ uvx zensical build
 
 Two things about the test output:
 
-- **The frontend reports 8 unhandled errors and always has.** They come from `lightweight-charts` calling `matchMedia` under jsdom in `book-view.spec.ts`. Confirm the count is unchanged rather than assuming; a ninth is yours.
+- **The frontend test run should report zero unhandled errors.** It reported eight for weeks, dismissed each time as a known `lightweight-charts` quirk. They were not a quirk: jsdom does not implement `matchMedia`, `src/test-setup.ts` now polyfills it, and the count went to zero. **Treat any unhandled error as yours until proven otherwise** — the previous eight hid the fact that `chart-theme.ts` was throwing on every chart test.
 - **`backend/tests/conftest.py` refuses any call to the live broker.** If a test suddenly hits it, the code now reaches further than it used to — that is information, not an obstacle. Stub what it names.
 
 ---
