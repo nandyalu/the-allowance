@@ -49,7 +49,10 @@ def world(monkeypatch):
         )
         monkeypatch.setattr(agent_performance.agent_book, "get_budget", lambda: budget)
         monkeypatch.setattr(
-            agent_performance, "get_current_price", lambda t: (prices or {}).get(t)
+            # Cached, not live: this is a read path since 2026-09-10 —
+            # see positions.get_shown_price and
+            # test_pages_read_cached_prices.py.
+            agent_performance, "get_shown_price", lambda t: (prices or {}).get(t)
         )
         # SPY history is a separate seam; default to unavailable so tests that
         # don't care about it get two strategies instead of three.

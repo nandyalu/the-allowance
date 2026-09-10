@@ -29,14 +29,16 @@ from backend.api.schemas import (
 )
 from backend.database import db
 from backend.services import agent, agent_book, agent_performance, journey, quotes, ticker_book
-from backend.services.positions import get_current_price
+from backend.services.positions import get_shown_price
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 
 
 @router.get("", response_model=AgentBookOut)
 def get_book():
-    book = agent_book.build_book(price_lookup=get_current_price)
+    # Cached, not live: this is a page, and the live path costs three
+    # seconds a ticker. See positions.get_shown_price.
+    book = agent_book.build_book(price_lookup=get_shown_price)
     return AgentBookOut(
         enabled=agent.is_enabled(),
         sandbox=quotes.is_sandbox(),

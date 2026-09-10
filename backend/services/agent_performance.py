@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 
 from backend.database import db
 from backend.services import agent_book, research
-from backend.services.positions import get_current_price
+from backend.services.positions import get_shown_price
 from backend.services.signals import BUYISH_DECISIONS, SELLISH_DECISIONS
 
 log = logging.getLogger("trading-experiment.agent_performance")
@@ -111,7 +111,7 @@ def _spy_strategy(budget: float, since: datetime.date) -> Strategy | None:
     from backend.services import bars
 
     history = bars.get_bars("SPY", since, include_today=True)
-    price_now = get_current_price("SPY")
+    price_now = get_shown_price("SPY")
     if not history or price_now is None:
         log.warning("No SPY history from %s — skipping the buy-and-hold baseline", since)
         return None
@@ -163,7 +163,7 @@ def _mechanical_strategy(budget: float, since: datetime.date) -> Strategy:
     # book is, so the two are compared on the same basis.
     open_value = 0.0
     for ticker, (shares, entry) in held.items():
-        price_now = get_current_price(ticker)
+        price_now = get_shown_price(ticker)
         open_value += shares * (price_now if price_now is not None else entry)
 
     # It reads the same analyses the agent does, so it pays for them too.
@@ -193,7 +193,7 @@ def compare() -> Comparison:
     if since is None:
         return Comparison(budget=budget, since=None)
 
-    book = agent_book.build_book(price_lookup=get_current_price)
+    book = agent_book.build_book(price_lookup=get_shown_price)
     strategies = [_agent_strategy(book, trades), _mechanical_strategy(budget, since)]
     spy = _spy_strategy(budget, since)
     if spy is not None:

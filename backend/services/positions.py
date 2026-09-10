@@ -72,6 +72,31 @@ def compute_position(transactions: list[dict]) -> Position:
     return Position(open_lots=open_lots, quantity=quantity, avg_cost=avg_cost, realized_pnl=realized_pnl)
 
 
+def get_shown_price(ticker: str) -> float | None:
+    """The last price this app fetched, without fetching another.
+
+    **For pages, never for decisions.** ``get_current_price`` asks the vendor,
+    and Webull's market-data endpoint is paced at three seconds a call since
+    2026-09-09 — it refused 524 calls in one day without it. Across ten
+    tracked tickers that is half a minute, serialised, and the home page was
+    spending it on every cold load: ``/api/agent`` measured 32 seconds.
+
+    Nothing here is worth that. The watchdog already fetches every tracked
+    ticker every fifteen minutes and writes each one through to this cache, so
+    a page reading it is showing a price minutes old rather than seconds old —
+    measured at 8 to 10 minutes across the whole watchlist. A figure on a page
+    that a reader looks at for two seconds does not need to be fresher than
+    the page itself, which is a static export up to half an hour old.
+
+    **The agent keeps the live path.** It trades on these numbers, and a stale
+    one becomes an order at a price that no longer exists. Every caller in
+    ``agent.py``, and the traded price in ``analysis.py``, still ask the
+    vendor. This is only for what the site draws.
+    """
+    cached = db.get_cached_price(ticker)
+    return cached.price if cached is not None else None
+
+
 def get_current_price(ticker: str) -> float | None:
     """Best-effort quote lookup — callers must handle None (e.g. rate-limited).
     Prefers Webull's real-time snapshot when configured (backend/services/quotes.py) and
