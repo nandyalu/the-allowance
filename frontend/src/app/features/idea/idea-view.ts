@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 
 import { Logo } from '../../shared/logo';
+import { startedOn } from '../../shared/experiment';
 
 /**
  * Why this exists, who built it, and what did not work.
@@ -20,4 +21,9 @@ import { Logo } from '../../shared/logo';
   imports: [Logo],
   templateUrl: './idea-view.html',
 })
-export class IdeaView {}
+export class IdeaView {
+  /** When THIS deployment started, not when the published one did. The date
+   * was written into the template, so every self-hosted copy claimed to have
+   * begun on the day this experiment began. */
+  protected readonly startedOn = startedOn;
+}

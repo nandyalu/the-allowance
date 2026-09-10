@@ -34,10 +34,10 @@
     </div>
   } @else {
     <p class="hint">
-      Click a month, or a day inside it, to open or close it. A collapsed month is fetched only
-      once you open it, so this page never loads more of the record than you asked to see. The
-      weekly digest sits among the days it summarises, not above them — it covers the seven days
-      before whenever it was last generated, not a fixed calendar week.
+      Click a month, or a day inside it, to open or close it. A collapsed month is fetched only once
+      you open it, so this page never loads more of the record than you asked to see. The weekly
+      digest sits among the days it summarises, not above them — it covers the seven days before
+      whenever it was last generated, not a fixed calendar week.
     </p>
 
     <!-- Same rule and badge structure as the Decisions page: one continuous
@@ -75,7 +75,9 @@
               </div>
             </li>
           } @else if (!entriesFor(month).length) {
-            <li class="tl tl--done"><p class="hint">No entries in {{ monthLabel(month) }}.</p></li>
+            <li class="tl tl--done">
+              <p class="hint">No entries in {{ monthLabel(month) }}.</p>
+            </li>
           } @else {
             @for (entry of entriesFor(month); track entry.date; let i = $index) {
               @if (digestInsertIndexFor(month) === i) {

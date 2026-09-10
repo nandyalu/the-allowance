@@ -206,7 +206,9 @@ describe('JournalView', () => {
   });
 
   it('does not show the digest inside a month its week_start does not belong to', async () => {
-    service.entriesByMonth['2026-09'] = [{ date: '2026-09-08', markdown: '## 2026-09-08\ncontent' }];
+    service.entriesByMonth['2026-09'] = [
+      { date: '2026-09-08', markdown: '## 2026-09-08\ncontent' },
+    ];
     // Belongs in August, which is not part of this test's month list at all.
     digestService.digest.set(digest({ week_start: '2026-08-20' }));
 

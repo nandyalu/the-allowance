@@ -57,6 +57,14 @@ Newest first.
 
 **Four pages sent readers to pages that were renamed.** The Signals, Tickers, Alerts and Events pages became Research, Book and Decisions when the site went from thirteen pages to nine. The old paths redirect, so every link still works and nothing looked broken — which is exactly why the names outlived the pages by a fortnight. A reader following "see the Tickers page" finds no such thing in the navigation.
 
+**A third pass, this time over the site's own words, found the same fault in a worse place.** The docs are read by someone setting the app up. The site is read by everyone, and a fresh deployment showed a decision card reading "Passes before 2026-09-01 were not recorded" on a container built that morning. The date was this project's own history, written into the template as though it were a property of the software.
+
+**Four more strings promised a schedule that was removed on 2026-09-05.** The empty states on the experiment page and the book page, and the agent's own description on the settings page, all told the reader the agent "decides each weekday just after the US open". It has named every one of its own times since that date. The book page went further and told the reader to "press Decide now" — a button removed on 2026-09-01, on a site whose entire premise is that no such button exists.
+
+**The idea page claimed this experiment's start date as every deployment's.** It now reads the same stamped date the rest of the site does.
+
+**The rule this suggests: site copy may state what the software does, and may not state what this deployment has done.** The two read identically while only one deployment exists, which is why every one of these survived. A date or a history in a template is a bug even when it is currently true.
+
 **And two numbers were from the previous model.** `docs/overview.md` costed an analysis at "about seven minutes of GPU", which was `gemma4-e2b-96k`'s figure; the model in use since 2026-09-01 takes about nineteen. The data-sources list still said yfinance "provides all historical bars", which stopped being true on 2026-09-08 when the daily cache started trying Webull first.
 
 **2026-09-10 — a first-run page says what is missing, instead of leaving a self-hoster reading docs and container logs.** Everything this app needs to run was configured through environment variables discovered by reading documentation, and everything that went wrong announced itself only in a log line nobody was watching. A new deployment came up looking healthy and doing nothing, and finding out why meant `docker logs`.

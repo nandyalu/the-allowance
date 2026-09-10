@@ -126,11 +126,21 @@
         </p>
         <pre class="verbatim">{{ event().thinking }}</pre>
       }
+    } @else if (event().skipped) {
+      <!-- The ordinary case, and the only one a fresh deployment ever sees:
+           the pass stopped before the model was asked, so there is no prompt
+           to keep rather than one that was lost. The reason is already
+           printed above, so it is not repeated here. -->
+      <p class="hint">This pass stopped before the model was asked, so no prompt was built.</p>
     } @else {
+      <!-- Only reachable on a deployment old enough to hold passes from
+           before it recorded prompts. Deliberately dateless: the date that
+           used to be here was this project's own, and read as a fact about
+           every deployment. -->
       <p class="hint">
-        This pass kept no prompt. Passes before 2026-09-01 were not recorded, and they cannot be
-        reconstructed — the prompt is built from a book, a watchlist and a signal list that have all
-        moved since.
+        This pass kept no prompt. The earliest passes here ran before the prompt was recorded, and
+        they cannot be reconstructed — a prompt is built from a book, a watchlist and a signal list
+        that have all moved since.
       </p>
     }
   </div>
