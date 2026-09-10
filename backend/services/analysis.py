@@ -18,7 +18,7 @@ from tradingagents.llm_clients.openai_client import OPENAI_COMPATIBLE_PROVIDERS
 
 from backend.database import db
 from backend.database.models import Signal
-from backend.services import bars, llm_usage, research, watchdog
+from backend.services import bars, llm_throttle, llm_usage, research, watchdog
 from backend.services import llm_traces
 from backend.services.positions import get_current_price
 from backend.services.signals import (
@@ -302,6 +302,15 @@ def _build_graph(
     if provider:
         config["llm_provider"] = provider
     graph = TradingAgentsGraph(config=config)
+    # Stay inside whatever rate limit the vendor is enforcing. Unconditional
+    # because it only ever waits when a vendor asks it to: the local pool
+    # reports no limits and never returns 429, so this costs it nothing. See
+    # backend/services/llm_throttle.py. getattr rather than attribute access
+    # because several tests stub TradingAgentsGraph out entirely, and a
+    # telemetry wrapper must never be the reason a graph fails to build.
+    llm_throttle.attach(
+        getattr(graph, "deep_thinking_llm", None), getattr(graph, "quick_thinking_llm", None)
+    )
     if tracker is not None:
         llm_usage.attach(tracker, graph.deep_thinking_llm, graph.quick_thinking_llm)
     # The trace recorder rides the same path for the same reason: these two

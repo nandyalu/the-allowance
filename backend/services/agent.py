@@ -31,8 +31,8 @@ from pathlib import Path
 
 from backend.database import db
 from backend.services import (
-    agent_book, analysis, candidates, llm_usage, market_clock, quotes, research,
-    sandbox_broker, watchdog,
+    agent_book, analysis, candidates, llm_throttle, llm_usage, market_clock, quotes,
+    research, sandbox_broker, watchdog,
 )
 from backend.services.positions import get_current_price
 from backend.services.sizing import get_atr, suggest_position
@@ -1291,6 +1291,10 @@ def _invoke(llm, prompt: str) -> tuple[str, str | None, int, int]:
     client = getattr(llm, "client", None)
     if client is not None and hasattr(client, "create"):
         try:
+            # The decision pass reaches the client directly rather than through
+            # the graph, so it needs the throttle attached here too — attaching
+            # is idempotent, so asking twice costs nothing.
+            llm_throttle.attach(llm)
             raw = client.create(
                 model=llm.model_name,
                 messages=[
