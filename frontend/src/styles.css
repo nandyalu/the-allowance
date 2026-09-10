@@ -1993,8 +1993,17 @@ table {
    rhythm without a paragraph of prose. */
 
 .timeline {
-  position: sticky;
-  top: calc(var(--topbar-h) + var(--sp-4));
+  /* **Stretched to the row, not pinned to the window.** It was sticky, which
+     caps a panel at the viewport: at 1440x900 that showed 797px of a 1569px
+     list and hid 772px, while the column beside it ran to 1543px. The space
+     was there and the panel could not reach it, because a sticky element
+     taller than the window pins its top and hides its bottom for good.
+
+     Stretching lets it use the height the money column already occupies. The
+     cost is that the rhythm scrolls away with the page instead of following
+     the reader down, which is the right trade when the alternative is hiding
+     half the list. */
+  align-self: stretch;
   padding: var(--sp-5);
   background: var(--surface);
   border: 1px solid var(--border);
@@ -2004,7 +2013,13 @@ table {
      five fixed rows a day and always fit; it now carries every pass the
      agent chose to make, which on a busy day is fifteen. Capping it to the
      window and letting it scroll inside keeps the last row reachable. */
-  max-height: calc(100vh - var(--topbar-h) - var(--sp-5));
+  /* A ceiling rather than a fit: the row already sizes to the taller of the
+     two columns, so this only catches a pathological day — fifty passes would
+     otherwise make one very long page. Two windows' worth is far past
+     anything seen, which is what makes the scrollbar below a fallback rather
+     than the normal state it used to be. 200vh was too tight: at 1280x800 it
+     is 1600px against a 1607px list, and clipped nine pixels. */
+  max-height: 300vh;
   overflow-y: auto;
   overscroll-behavior: contain;
   /* Themed, because the default is a grey slab that belongs to the browser
