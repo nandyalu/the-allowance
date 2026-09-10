@@ -82,6 +82,10 @@ def test_a_non_simulated_account_number_is_refused(sandbox, monkeypatch):
 # stopped the agent on 2026-09-03, so both are pinned here.
 @pytest.mark.parametrize("number", ["DEM272X7", "DEL546C9"])
 def test_a_simulated_account_resolves(sandbox, monkeypatch, number):
+    # Naming the account is required since 2026-09-09 — an unset
+    # WEBULL_ACCOUNT_ID stops order flow, so that a second container cannot
+    # silently resolve the same book. See test_account_is_named_not_inferred.py.
+    monkeypatch.setenv("WEBULL_ACCOUNT_ID", number)
     monkeypatch.setattr(
         sandbox_broker, "_rows",
         lambda _: [

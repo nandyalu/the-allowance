@@ -7,7 +7,7 @@ credentials are different key pairs pointing at different hosts
 (api.webull.com vs api.sandbox.webull.com), so with the sandbox flag off there
 is no simulated account to reach and every order would land on real money.
 
-Two further belts, because one flag is one typo away from being wrong:
+Three further belts, because one flag is one typo away from being wrong:
 
 - The target account is resolved by ``account_class == INDIVIDUAL_CASH``, never
   hardcoded, and the resolver rejects any account whose number doesn't look
@@ -17,6 +17,14 @@ Two further belts, because one flag is one typo away from being wrong:
 - Every order goes through ``_assert_sandbox()`` immediately before the call,
   not merely at module import, so flipping the environment mid-process cannot
   leave a live client armed.
+- ``WEBULL_ACCOUNT_ID`` names the one account this deployment owns, and an
+  unset value stops order flow rather than falling back to anything. Added
+  2026-09-09 for a second container: the checks above narrow five accounts to
+  one, and would narrow to the *same* one for every deployment applying the
+  same rule, leaving a record unable to say which container traded. See
+  ``configured_account``.
+
+All three narrow; none of them widens. An account must pass every one.
 
 Field names come from the Place Order reference (developer.webull.com,
 common-order-place), not from the SDK — the SDK passes dicts straight through
@@ -62,6 +70,56 @@ _DEFAULT_ACCOUNT_CLASS = "INDIVIDUAL_CASH"
 _SIMULATED_ACCOUNT_PREFIX = "DE"
 
 _account_id: str | None = None
+
+
+class NoAccountConfiguredError(RuntimeError):
+    """Raised when WEBULL_ACCOUNT_ID names no account this deployment may use."""
+
+
+def configured_account() -> str:
+    """The one account this deployment is allowed to trade, from
+    ``WEBULL_ACCOUNT_ID``.
+
+    **Required, with no default, and that is the point.** Added 2026-09-09,
+    when a second container was about to run: the three guards above narrow
+    the sandbox's five accounts to "an ``INDIVIDUAL_CASH`` account numbered
+    ``DE…``", which is one account — and would be the *same* one account for
+    every container that applies the same rule. Two deployments sharing a book
+    leaves a record that cannot say which of them placed an order.
+
+    A default would defeat it. The value of this guard is that a person wrote
+    down which book this container owns, and a guard that guesses when nobody
+    wrote anything down is not a guard. So an unset variable stops order flow
+    rather than falling back to the old behaviour.
+
+    Read per call rather than at import, like ``tradeable_account_class``, so a
+    test can change it without reimporting the module.
+    """
+    configured = (os.environ.get("WEBULL_ACCOUNT_ID") or "").strip()
+    if not configured:
+        raise NoAccountConfiguredError(
+            "WEBULL_ACCOUNT_ID is not set, so this deployment does not know which "
+            "account it owns and will not place orders. Set it to the account "
+            "number (DE…) or the account id of the simulated account this "
+            "container should trade."
+        )
+    return configured
+
+
+def _is_the_configured_account(account: dict, wanted_id: str) -> bool:
+    """Whether this is the account the operator named.
+
+    Matches the account number or the internal id, whichever was pasted. The
+    two are different shapes — ``DEL546C9`` against a numeric id — so accepting
+    either cannot make a wrong value look right: a value matching neither
+    matches nothing and the app refuses. Requiring the *right* one of two
+    identifiers, with nothing in the console saying which the app wanted, would
+    only produce confusing refusals.
+    """
+    return wanted_id in (
+        str(account.get("account_number", "")).strip(),
+        str(account.get("account_id", "")).strip(),
+    )
 
 
 def tradeable_account_class() -> str:
@@ -136,6 +194,15 @@ def get_paper_account_id(*, refresh: bool = False) -> str | None:
     from webull.trade.trade.v2.account_info_v2 import AccountV2
 
     wanted = tradeable_account_class()
+    try:
+        wanted_id = configured_account()
+    except NoAccountConfiguredError as exc:
+        # Not a crash: every caller already treats None as "no account to
+        # trade" and stops. Logged at error because a deployment in this state
+        # is switched on and doing nothing, which should be loud.
+        log.error("%s", exc)
+        return None
+
     for account in _rows(AccountV2(client).get_account_list()):
         if str(account.get("account_class", "")).upper() != wanted:
             continue
@@ -147,9 +214,26 @@ def get_paper_account_id(*, refresh: bool = False) -> str | None:
                 wanted,
             )
             return None
+        # Applied last, so it can only narrow what the checks above already
+        # allowed. An account has to be simulated, of the right class, and
+        # then the one this deployment was told it owns.
+        #
+        # `continue`, not `return`: the host can hold several accounts of one
+        # class, and finding the wrong one first must not abort the search for
+        # the right one. Returning here meant a deployment naming the second
+        # such account resolved nothing — caught by
+        # test_two_deployments_naming_different_accounts_resolve_differently.
+        if not _is_the_configured_account(account, wanted_id):
+            log.debug("Skipping %s: not the account this deployment owns", number)
+            continue
         _account_id = str(account.get("account_id"))
         return _account_id
-    log.error("No %s account found on the sandbox host", wanted)
+    log.error(
+        "No %s account matching WEBULL_ACCOUNT_ID=%s found on the sandbox host — "
+        "this deployment will not place orders",
+        wanted,
+        wanted_id,
+    )
     return None
 
 
