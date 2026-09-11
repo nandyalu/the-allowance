@@ -24,8 +24,8 @@ Nothing else in the design cares which you pick.
 ## The shortest path
 
 ```sh
-git clone --recurse-submodules https://github.com/nandyalu/the-allowance
-cd the-allowance
+git clone --recurse-submodules https://github.com/nandyalu/ten-acre
+cd ten-acre
 docker build -t trading-experiment:local .
 cp compose.example.yaml compose.yaml
 cp .env.example .env

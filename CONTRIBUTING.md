@@ -4,7 +4,7 @@
 
 ## What this is
 
-**The Allowance is an experiment, not a product.** One AI agent trades one simulated account with $10,000, chooses its own research, pays for it out of the same money, and nobody helps it. The question being asked is what an agent does when it is given real tools and no human hand.
+**Ten Acre is an experiment, not a product.** One AI agent trades one simulated account with $10,000, chooses its own research, pays for it out of the same money, and nobody helps it. The question being asked is what an agent does when it is given real tools and no human hand.
 
 That framing decides most arguments about this codebase, so it decides what a good contribution looks like. A change that makes the app more useful to operate is usually a change that makes the experiment worth less.
 
@@ -30,9 +30,9 @@ Three files, three questions. **One question decides between the first two: does
 
 | File | Holds | When |
 |---|---|---|
-| [JOURNEY.md](https://github.com/nandyalu/the-allowance/blob/main/JOURNEY.md) | Changes to the agent | Any of the three tests below |
-| [docs/changelog.md](https://github.com/nandyalu/the-allowance/blob/main/docs/changelog.md) | Everything else about the app | None of them |
-| [CLAUDE.md](https://github.com/nandyalu/the-allowance/blob/main/CLAUDE.md) | What the rules are *now* | Reasoning a future edit must not undo |
+| [JOURNEY.md](https://github.com/nandyalu/ten-acre/blob/main/JOURNEY.md) | Changes to the agent | Any of the three tests below |
+| [docs/changelog.md](https://github.com/nandyalu/ten-acre/blob/main/docs/changelog.md) | Everything else about the app | None of them |
+| [CLAUDE.md](https://github.com/nandyalu/ten-acre/blob/main/CLAUDE.md) | What the rules are *now* | Reasoning a future edit must not undo |
 
 Any one of these is enough for `JOURNEY.md`:
 
@@ -47,8 +47,8 @@ Everything else — setup, deployment, guards, infrastructure, site copy, docs, 
 ## Running it
 
 ```sh
-git clone --recurse-submodules https://github.com/nandyalu/the-allowance
-cd the-allowance
+git clone --recurse-submodules https://github.com/nandyalu/ten-acre
+cd ten-acre
 uv sync --extra dev
 
 uv run pytest backend/tests -q          # backend
@@ -60,7 +60,7 @@ uvx zensical build                      # the documentation site
 
 `--recurse-submodules` matters: `TradingAgents/` is a real submodule and the app does not start without it.
 
-To run the whole thing, see [docs/deploying.md](https://github.com/nandyalu/the-allowance/blob/main/docs/deploying.md). You need Webull sandbox credentials and a model endpoint; both are free, and the app's own `/setup` page tells you what is missing.
+To run the whole thing, see [docs/deploying.md](https://github.com/nandyalu/ten-acre/blob/main/docs/deploying.md). You need Webull sandbox credentials and a model endpoint; both are free, and the app's own `/setup` page tells you what is missing.
 
 ## Before you open a pull request
 
@@ -88,7 +88,7 @@ Small, single-purpose pull requests. If a change needs a `JOURNEY.md` entry, it 
 
 ## Licence, and what happens to your code
 
-**This project is under the [PolyForm Noncommercial License 1.0.0](https://github.com/nandyalu/the-allowance/blob/main/LICENSE).** That is *source-available*, not open source: you may read it, run it, modify it and share it for any noncommercial purpose, and you may not sell it or use it in a commercial product. Read the licence rather than this summary.
+**This project is under the [PolyForm Noncommercial License 1.0.0](https://github.com/nandyalu/ten-acre/blob/main/LICENSE).** That is *source-available*, not open source: you may read it, run it, modify it and share it for any noncommercial purpose, and you may not sell it or use it in a commercial product. Read the licence rather than this summary.
 
 By opening a pull request you agree to both of the following.
 
@@ -110,4 +110,4 @@ If either term does not work for you, open an issue and say so before writing th
 
 ## Contributing with an AI assistant
 
-**Most of this codebase was written by one**, and there is a separate document about what that means and what it costs: [AI_POLICY.md](https://github.com/nandyalu/the-allowance/blob/main/AI_POLICY.md). Read it before you point a coding agent at this repo. It is not a prohibition — it is a list of the specific ways AI-authored changes have gone wrong here, in this repo, with dates.
+**Most of this codebase was written by one**, and there is a separate document about what that means and what it costs: [AI_POLICY.md](https://github.com/nandyalu/ten-acre/blob/main/AI_POLICY.md). Read it before you point a coding agent at this repo. It is not a prohibition — it is a list of the specific ways AI-authored changes have gone wrong here, in this repo, with dates.

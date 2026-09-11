@@ -1,4 +1,4 @@
-# The Allowance — Claude Code context
+# Ten Acre — Claude Code context
 
 **One autonomous agent trading one simulated book with $10,000.** FastAPI +
 Angular dashboard and a notification-only Discord bot (`backend/`), delegating
@@ -69,7 +69,7 @@ Two copies of the compose config exist and are **not synced automatically**:
   hardcoded.
 
 **The public site is a fully static Cloudflare Pages deployment as of
-2026-09-09, at `the-allowance.nandyalu.com` (a subdomain of the domain bought
+2026-09-09, at `ten-acre.nandyalu.com` (a subdomain of the domain bought
 that same day).** It went through a live read-only mirror first, briefly:
 standing up a second container (`trading-experiment-public`, `PUBLIC_MODE=1`)
 behind a Cloudflare Tunnel surfaced two real gaps in "read-only" as a
@@ -112,7 +112,7 @@ public path entirely rather than keep patching it:
 **`trading-bot-public` and `cloudflared` are retired**, along with the Zero
 Trust tunnel itself (deleted outright, not just unused) — the public site is
 now files with no server, no database connection, and no credentials
-anywhere near it. `the-allowance.nandyalu.com`'s DNS points at the Cloudflare
+anywhere near it. `ten-acre.nandyalu.com`'s DNS points at the Cloudflare
 Pages project directly (Workers & Pages → the project → Custom domains),
 which also means the domain's *only* remaining live surface is
 `trading-experiment` (private) and `trading-experiment-pages-publisher` —

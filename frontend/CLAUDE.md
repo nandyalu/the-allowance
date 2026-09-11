@@ -1,6 +1,6 @@
 # frontend — Claude Code context
 
-**This is the public site for The Allowance**, an experiment in which one AI agent trades a simulated account with no human help. It is a publication, not a tool: nothing here operates anything, and no control on it can change what the agent does. See `../plan.md` for the design plan and `../CLAUDE.md` for the experiment itself.
+**This is the public site for Ten Acre**, an experiment in which one AI agent trades a simulated account with no human help. It is a publication, not a tool: nothing here operates anything, and no control on it can change what the agent does. See `../plan.md` for the design plan and `../CLAUDE.md` for the experiment itself.
 
 Angular 22 (standalone components, signals, zoneless), vitest for tests, `lightweight-charts` for both charts. No UI framework and no CSS preprocessor. Commands run from `frontend/`: `npx ng build` (full template type-check), `npx ng test`, `npx prettier --write "src/**/*.{ts,html,css}"`.
 

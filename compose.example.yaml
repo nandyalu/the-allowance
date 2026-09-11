@@ -1,4 +1,4 @@
-# The Allowance — one agent, one simulated book, $10,000.
+# Ten Acre — one agent, one simulated book, $10,000.
 #
 # Copy this file to compose.yaml, copy .env.example to .env, fill in the .env,
 # then `docker compose up -d`. Every value below reads from .env, so this file

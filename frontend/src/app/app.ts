@@ -154,9 +154,7 @@ export class App {
     const url = this.url().split('?')[0];
     if (url === '/') return 'Overview';
     const all = this.allNav();
-    return (
-      all.find((item) => item.path !== '/' && url.startsWith(item.path))?.label ?? 'The Allowance'
-    );
+    return all.find((item) => item.path !== '/' && url.startsWith(item.path))?.label ?? 'Ten Acre';
   });
 
   /** Send a never-started deployment to the setup page, once, on load.

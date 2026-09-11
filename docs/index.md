@@ -1,10 +1,10 @@
-# The Allowance
+# Ten Acre
 
 **One question, asked in public: what does an autonomous AI agent do with $10,000?**
 
-*The Allowance* — money given to someone to spend as they choose, inside rules they did not set. That is the setup exactly.
+*Ten Acre* — a small plot with a fence around it, and one worker left alone to farm it. That is the setup exactly.
 
-The Allowance is a self-hosted experiment. An agent gets a simulated brokerage account, a fixed budget, and a bill for every piece of research it orders. It decides what to study, what to buy, what to sell, and when to give up on a name. Nobody helps it.
+Ten Acre is a self-hosted experiment. An agent gets a simulated brokerage account, a fixed budget, and a bill for every piece of research it orders. It decides what to study, what to buy, what to sell, and when to give up on a name. Nobody helps it.
 
 A web dashboard and a Discord channel report what it did.
 

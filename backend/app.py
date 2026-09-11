@@ -109,7 +109,7 @@ _api_reference_urls = (
         "openapi_url": "/api/openapi.json",
     }
 )
-app = FastAPI(title="Trading Helper", lifespan=lifespan, **_api_reference_urls)
+app = FastAPI(title="Ten Acre", lifespan=lifespan, **_api_reference_urls)
 
 # --- the public read-only guard ------------------------------------------------
 #

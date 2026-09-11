@@ -5,24 +5,24 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="frontend/public/logo/logo-dark.svg">
-    <img src="frontend/public/logo/logo-light.svg" alt="The Allowance" width="96" height="96">
+    <img src="frontend/public/logo/logo-light.svg" alt="Ten Acre" width="96" height="96">
   </picture>
 </p>
 
-<h1 align="center">The Allowance</h1>
+<h1 align="center">Ten Acre</h1>
 
 <p align="center"><strong>One question, asked in public: what does an autonomous AI agent do with $10,000?</strong></p>
 
 <p align="center">
-  <a href="https://the-allowance.nandyalu.com">The live site</a> ·
+  <a href="https://ten-acre.nandyalu.com">The live site</a> ·
   <a href="CONTRIBUTING.md">Contributing</a> ·
   <a href="AI_POLICY.md">Using AI on this project</a> ·
   <a href="JOURNEY.md">The journey</a>
 </p>
 
-*The Allowance* — money given to someone to spend as they choose, inside rules they did not set. That is the setup exactly.
+*Ten Acre* — a small plot with a fence around it, and one worker left alone to farm it. That is the setup exactly.
 
-The Allowance is a self-hosted experiment. An agent gets a simulated brokerage account, a fixed budget, and a bill for every piece of research it orders. It decides what to study, what to buy, what to sell, and when to give up on a name. Nobody helps it. A web dashboard and a Discord channel report what it did.
+Ten Acre is a self-hosted experiment. An agent gets a simulated brokerage account, a fixed budget, and a bill for every piece of research it orders. It decides what to study, what to buy, what to sell, and when to give up on a name. Nobody helps it. A web dashboard and a Discord channel report what it did.
 
 The agent runs a multi-agent AI analysis ([TradingAgents](TradingAgents/README.md)) on the stocks it chooses to watch. The app records every call that analysis makes and grades each one against reality, against a SPY buy-and-hold, and against the analysis's own price target.
 

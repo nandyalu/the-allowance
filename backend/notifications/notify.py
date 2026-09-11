@@ -45,7 +45,7 @@ def _post(url: str, payload: dict) -> None:
     request = urllib.request.Request(
         url,
         data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json", "User-Agent": "the-allowance"},
+        headers={"Content-Type": "application/json", "User-Agent": "ten-acre"},
     )
     with urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS):
         pass

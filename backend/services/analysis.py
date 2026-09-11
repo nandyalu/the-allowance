@@ -230,7 +230,7 @@ def _models_auth_header() -> dict[str, str]:
     # which sits behind it: the identical request with a key returns 403 as
     # urllib and 200 as curl. Nothing about the key was wrong, and chasing the
     # key is where an hour goes.
-    headers = {"User-Agent": "the-allowance/1.0"}
+    headers = {"User-Agent": "ten-acre/1.0"}
     if key:
         headers["Authorization"] = f"Bearer {key}"
     return headers

@@ -8,11 +8,13 @@ import { Component, input } from '@angular/core';
  * started with, the same line the equity chart measures against.
  *
  * The T's stem drops below it. The A rises above it. Down then up, in the two
- * colours the rest of the site uses for exactly that, so the initials of the
- * framework this is built on also read as the thing being measured.
+ * colours the rest of the site uses for exactly that, so TA reads three ways at
+ * once: Ten Acre, the TradingAgents framework this is built on, and the thing
+ * being measured.
  *
- * The corner brackets are the guardrails, and a viewfinder: the point of the
- * experiment is that it is under observation.
+ * The corner brackets are the fence around the plot, the guardrails the agent
+ * cannot pass, and a viewfinder: the point of the experiment is that it is
+ * under observation.
  *
  * Drawn on a 32-unit grid. At favicon size the frame and the baseline survive
  * and the letterforms become texture, which still reads as "something

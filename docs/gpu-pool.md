@@ -4,7 +4,7 @@ Started 2026-08-29. Goal: get faster token generation, and maybe headroom for a 
 
 ## Background
 
-The pool runs 7 AMD RX 6600 cards (8 GiB each), one per `ollama-pool-*` docker container, behind `ollama-proxy`. See the repository's [CLAUDE.md](https://github.com/nandyalu/the-allowance/blob/main/CLAUDE.md) "Ollama pool topology" section for the full layout.
+The pool runs 7 AMD RX 6600 cards (8 GiB each), one per `ollama-pool-*` docker container, behind `ollama-proxy`. See the repository's [CLAUDE.md](https://github.com/nandyalu/ten-acre/blob/main/CLAUDE.md) "Ollama pool topology" section for the full layout.
 
 The cards report as `gfx1030` because every pool container sets `HSA_OVERRIDE_GFX_VERSION=10.3.0`. Their real chip is `gfx1032` (RDNA2). ROCm does not officially support gfx1032, so this override is required for the cards to work at all.
 
@@ -62,7 +62,7 @@ None of items 1–3 are confirmed on an RX 6600 specifically yet. The RDNA2 data
 
 ### Constraints while testing
 
-- **All 7 cards are already assigned.** They went 4 to the live deployment and 3 to a second analyst experiment when this was written; that second deployment ended on 2026-09-01, and the one that remains gets all seven — see the pool topology notes in [CLAUDE.md](https://github.com/nandyalu/the-allowance/blob/main/CLAUDE.md). Either way there is no idle spare card, so a benchmark competes with whatever is running at that moment.
+- **All 7 cards are already assigned.** They went 4 to the live deployment and 3 to a second analyst experiment when this was written; that second deployment ended on 2026-09-01, and the one that remains gets all seven — see the pool topology notes in [CLAUDE.md](https://github.com/nandyalu/ten-acre/blob/main/CLAUDE.md). Either way there is no idle spare card, so a benchmark competes with whatever is running at that moment.
 - Per the same notes, that contention **costs latency, not failures** — the proxy queues rather than errors. Keep each benchmark run short to keep that cost small.
 - Do not change the running pool containers, `dockge/ollama-pool.compose.yaml`, or any deployed config as part of this benchmarking work. This plan is measurement only until the numbers are in.
 

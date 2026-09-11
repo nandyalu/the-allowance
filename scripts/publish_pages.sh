@@ -10,7 +10,7 @@
 # waiting, not a stale copy from the round before.
 set -eu
 
-PROJECT_NAME="${PAGES_PROJECT_NAME:-the-allowance}"
+PROJECT_NAME="${PAGES_PROJECT_NAME:-ten-acre}"
 DATA_DIR="/data/public_snapshot"
 SITE_DIR="./site"
 COMBINED_DIR="/tmp/combined"

@@ -29,7 +29,7 @@ Two rules, both learned the hard way elsewhere in this project:
 
 ## What belongs here, and what does not
 
-**One question decides it: does this change make two periods of the experiment non-comparable?** If yes, it goes here. If no, it goes in [the changelog](https://github.com/nandyalu/the-allowance/blob/main/docs/changelog.md).
+**One question decides it: does this change make two periods of the experiment non-comparable?** If yes, it goes here. If no, it goes in [the changelog](https://github.com/nandyalu/ten-acre/blob/main/docs/changelog.md).
 
 That splits into three tests. Any one of them is enough:
 
@@ -45,7 +45,7 @@ Entries before 2026-09-11 were swept under these rules; anything that failed all
 
 ## Every change to the agent, and why
 
-**This file covers one agent: the merged agent that has run since 2026-09-01.** Before that date, two deployments ran side by side — a live bot on a fixed watchlist, and a separate analyst experiment that chose its own tickers. Both ended on 2026-09-01. Their history lives in [the two-book experiment](https://github.com/nandyalu/the-allowance/blob/main/docs/two-book-experiment.md) and [the analyst experiment](https://github.com/nandyalu/the-allowance/blob/main/docs/analyst-experiment.md).
+**This file covers one agent: the merged agent that has run since 2026-09-01.** Before that date, two deployments ran side by side — a live bot on a fixed watchlist, and a separate analyst experiment that chose its own tickers. Both ended on 2026-09-01. Their history lives in [the two-book experiment](https://github.com/nandyalu/ten-acre/blob/main/docs/two-book-experiment.md) and [the analyst experiment](https://github.com/nandyalu/ten-acre/blob/main/docs/analyst-experiment.md).
 
 `CLAUDE.md` describes what the rules are. This describes how they got that way. Add an entry here **before** changing a rule, not after.
 

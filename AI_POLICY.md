@@ -23,8 +23,8 @@ You do not need to disclose that you used an assistant. You do need to be able t
 
 Read these, in this order:
 
-1. **[CONTRIBUTING.md](https://github.com/nandyalu/the-allowance/blob/main/CONTRIBUTING.md)** — the four rules that are not up for discussion, and where a change gets recorded.
-2. **[CLAUDE.md](https://github.com/nandyalu/the-allowance/blob/main/CLAUDE.md)** — the current contract. What the agent is shown, what it may ask for, what Python refuses, and the reasoning behind each. Long, and the sections above the fold are the ones that decide arguments.
+1. **[CONTRIBUTING.md](https://github.com/nandyalu/ten-acre/blob/main/CONTRIBUTING.md)** — the four rules that are not up for discussion, and where a change gets recorded.
+2. **[CLAUDE.md](https://github.com/nandyalu/ten-acre/blob/main/CLAUDE.md)** — the current contract. What the agent is shown, what it may ask for, what Python refuses, and the reasoning behind each. Long, and the sections above the fold are the ones that decide arguments.
 3. **The skills in `.claude/skills/`.** Each exists because something went wrong without one.
 
 | Skill | Use it when |
