@@ -93,7 +93,7 @@
     }
   </section>
 
-  <!-- Every analysis, in date order. -->
+  <!-- Every analysis, newest first — by time of day as well as by date. -->
   <section class="card">
     <div class="card-head">
       <h2>Every analysis</h2>
@@ -137,7 +137,7 @@
           <thead>
             <tr>
               <th>Ticker</th>
-              <th>Date</th>
+              <th>Analysed</th>
               <th>Decision</th>
               <th><app-term key="graded" /></th>
             </tr>
@@ -148,7 +148,14 @@
                 <td class="ticker-cell" data-label="">
                   <a [routerLink]="['/research/analysis', s.id]">{{ s.ticker }}</a>
                 </td>
-                <td class="num" data-label="Date">{{ s.signal_date }}</td>
+                <td class="num" data-label="Analysed">
+                  <span class="analysed">
+                    <span>{{ analysedDay(s) }}</span>
+                    @if (analysedTime(s); as t) {
+                      <span class="analysed-time">{{ t }}</span>
+                    }
+                  </span>
+                </td>
                 <td data-label="Decision"><app-decision-badge [decision]="s.decision" /></td>
                 <td data-label="Graded">
                   @if (s.outcome) {

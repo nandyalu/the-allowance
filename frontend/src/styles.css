@@ -88,6 +88,23 @@ a:hover {
   color: var(--text-muted);
 }
 
+/* When an analysis ran: the day, and the time under it.
+   The time is the point — several analyses a day is normal here, and the
+   calendar date alone cannot separate them. Kept in one wrapper so the two
+   stay together when `.data-table--stack` turns the cell into a flex row on
+   a phone and would otherwise push them to opposite ends. */
+.analysed {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: inherit;
+}
+
+.analysed-time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 /* Text for a screen reader only — a column header that would be noise on
    screen but is needed to name the column. */
 .sr-only {

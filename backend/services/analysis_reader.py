@@ -20,6 +20,7 @@ import datetime
 import logging
 
 from backend.database import db
+from backend.services import signals as signals_service
 from backend.database.models import Signal
 
 log = logging.getLogger("trading-experiment.analysis_reader")
@@ -64,15 +65,12 @@ def _newest_first(signals: list[Signal]) -> list[Signal]:
     ``db.get_recent_signals`` orders by ``signal_date`` alone, which is a
     calendar date, so two analyses of the same ticker on the same day come
     back in whatever order the rows happen to sit in — and asking for INTC's
-    2026-09-08 analysis returned the 19:06 one over the 19:18 one. Sorted here
-    rather than in the query because every other caller reads that ordering
-    and this is not the change to alter it in.
+    2026-09-08 analysis returned the 19:06 one over the 19:18 one.
+
+    One copy of the key, shared with the research page, which had the same
+    fault for the same reason.
     """
-    return sorted(
-        signals,
-        key=lambda s: (str(s.signal_date)[:10], str(getattr(s, "created_at", "") or ""), s.id or 0),
-        reverse=True,
-    )
+    return signals_service.newest_first(signals)
 
 
 def _matching(ticker: str, on: datetime.date | None) -> list[Signal]:

@@ -5,6 +5,7 @@ import { SignalDetail } from '../../core/models/api.models';
 import { SignalsService } from '../../core/services/signals.service';
 import { DecisionBadge } from '../../shared/decision-badge';
 import { parseRationale } from '../../shared/rationale';
+import { readerDateTime } from '../../shared/market-time';
 import { CopyButton } from '../../shared/copy-button';
 
 @Component({
@@ -88,6 +89,19 @@ export class SignalDetailPage {
 
   protected at(value: string | null): string {
     return value ? value.replace('T', ' ').slice(0, 16) : '—';
+  }
+
+  /**
+   * When this analysis ran — the date and the time, on the reader's clock.
+   *
+   * **The date alone cannot identify it.** INTC has two analyses dated
+   * 2026-09-08 and CRWV two dated 2026-09-10, so a reader arriving from the
+   * list could not tell which of a day's analyses they were looking at.
+   * Falls back to the bare `signal_date` on a row with no timestamp, rather
+   * than inventing a time it never recorded.
+   */
+  protected analysedAt(s: SignalDetail): string {
+    return s.created_at ? readerDateTime(s.created_at) : String(s.signal_date);
   }
 
   /** Sub-cent runs are the normal case for a self-hosted model, so two decimal

@@ -7,6 +7,7 @@ import { TickersService } from '../../core/services/tickers.service';
 import { WatchlistService } from '../../core/services/watchlist.service';
 import { DecisionBadge } from '../../shared/decision-badge';
 import { Term } from '../../shared/glossary/term';
+import { readerDateKey, readerTime } from '../../shared/market-time';
 import { charging, researchPriceLabel } from '../../shared/research-price';
 
 type StatusFilter = '' | 'pending' | 'resolved';
@@ -78,5 +79,30 @@ export class ResearchView {
 
   protected volumeM(volume: number): string {
     return `${(volume / 1_000_000).toFixed(0)}M`;
+  }
+
+  /**
+   * The calendar day an analysis ran, on the reader's clock.
+   *
+   * Taken from `created_at` rather than `signal_date` so the day and the time
+   * below it are the same instant in the same zone. Falls back to
+   * `signal_date` on a row with no timestamp to recover one from.
+   */
+  protected analysedDay(s: Signal): string {
+    return s.created_at ? readerDateKey(s.created_at) : s.signal_date;
+  }
+
+  /**
+   * The time of day, or an empty string when the row has no timestamp.
+   *
+   * **The date alone cannot separate two analyses of one day**, and several a
+   * day is the normal case: eight on 2026-09-10, nine on 2026-09-08. Without
+   * this a reader saw eight rows all reading 2026-09-10 and no way to tell
+   * which came first.
+   */
+  protected analysedTime(s: Signal): string {
+    if (!s.created_at) return '';
+    const t = readerTime(s.created_at);
+    return `${t.time} ${t.zone}`;
   }
 }

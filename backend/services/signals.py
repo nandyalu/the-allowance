@@ -70,6 +70,33 @@ HORIZONS = {
 DEFAULT_HORIZON = "swing"
 
 
+def newest_first(signals: list) -> list:
+    """Signals ordered so the head is genuinely the newest.
+
+    ``signal_date`` is a calendar date, so it cannot separate two analyses of
+    the same day — and several a day is the normal case here, not an edge one:
+    eight on 2026-09-10, nine on 2026-09-08. Ordered by ``signal_date`` alone,
+    the eight came back oldest first, so the research page showed the day's
+    06:02 analysis above its 16:57 one.
+
+    ``created_at`` breaks that tie, and the row id breaks a tie in
+    ``created_at`` — the retired 11:00 sweep dispatched seven analyses in one
+    second and they share a timestamp to the microsecond.
+
+    Sorted here rather than in ``db.get_recent_signals``'s own query because
+    every other caller reads that ordering.
+    """
+    return sorted(
+        signals,
+        key=lambda s: (
+            str(s.signal_date)[:10],
+            str(getattr(s, "created_at", "") or ""),
+            s.id or 0,
+        ),
+        reverse=True,
+    )
+
+
 def horizon_params(horizon: str | None) -> dict:
     """Grading parameters for a horizon, falling back to the default for an
     unknown or missing value rather than raising — a bad setting should not

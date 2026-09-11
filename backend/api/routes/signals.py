@@ -15,7 +15,7 @@ from backend.api.schemas import (
     SignalDetailOut,
     SignalOut,
 )
-from backend.services import agent_book
+from backend.services import agent_book, signals as signals_service
 
 router = APIRouter(prefix="/api/signals", tags=["signals"])
 
@@ -27,11 +27,16 @@ def list_signals(ticker: str | None = None, status: str | None = None, limit: in
         rows = db.get_pending_signals(datetime.date.today())
         if ticker:
             rows = [s for s in rows if s.ticker == ticker]
-        rows = rows[:limit]
     elif status == "resolved":
-        rows = db.get_resolved_signals(ticker)[:limit]
+        rows = db.get_resolved_signals(ticker)
     else:
         rows = db.get_recent_signals(ticker, limit=limit)
+    # Sorted before the slice, and for every branch, because the three
+    # disagreed: "pending" came back in whatever order the rows sat in,
+    # "resolved" came back oldest first — so asking for the newest 20 resolved
+    # analyses returned the 20 oldest — and "recent" ordered by calendar date
+    # alone, which cannot separate a day that holds eight analyses.
+    rows = signals_service.newest_first(rows)[:limit]
     return [SignalOut.model_validate(s) for s in rows]
 
 
