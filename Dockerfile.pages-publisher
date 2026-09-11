@@ -11,10 +11,27 @@
 # files and uploads them.
 FROM node:22-slim AS frontendbuilder
 
+# Where the built bundle looks for the exporter's JSON. The default, /data,
+# means "beside the page", which is what a Pages deployment carrying both the
+# bundle and the data gives you. Set it to an absolute URL to serve the
+# snapshot from an R2 bucket on its own domain instead, and set
+# R2_SNAPSHOT_BUCKET on the container to match:
+#
+#   docker build -f Dockerfile.pages-publisher \
+#     --build-arg SNAPSHOT_BASE_URL=https://data.example.com \
+#     -t trading-experiment-pages-publisher:local .
+#
+# The two must agree. A bundle pointed at a bucket nobody uploads to shows an
+# empty site, and it fails by rendering nothing rather than by erroring.
+ARG SNAPSHOT_BASE_URL=/data
+
 WORKDIR /frontend-build
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
+RUN sed -i "s#snapshotRoot: '/data'#snapshotRoot: '${SNAPSHOT_BASE_URL}'#" \
+      src/environments/environment.public.ts \
+ && grep -n snapshotRoot src/environments/environment.public.ts
 # The public configuration: no /settings route, and every /api/... call
 # redirected to a static file by static-data.interceptor.ts. See
 # frontend/angular.json's "public" configuration and app.routes.public.ts.

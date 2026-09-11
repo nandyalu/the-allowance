@@ -51,7 +51,9 @@ export const staticDataInterceptor: HttpInterceptorFn = (req, next) => {
   );
 };
 
-const SNAPSHOT_ROOT = '/data';
+/** Same-origin `/data` by default; an absolute URL when the publisher was
+ * built to serve the snapshot from R2. See environments/environment.public.ts. */
+const SNAPSHOT_ROOT = environment.snapshotRoot;
 
 /** Exported for direct unit testing — see static-data.interceptor.spec.ts.
  * The mapping table is the part most likely to drift from

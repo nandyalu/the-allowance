@@ -4,4 +4,7 @@
  * that reads `staticSite` is in static-data.interceptor.ts. */
 export const environment = {
   staticSite: false,
+  /** Unused here: the live build talks to its own backend. It exists so both
+   * environment files have one shape, since fileReplacements swaps them. */
+  snapshotRoot: '/data',
 };

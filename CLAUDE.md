@@ -97,17 +97,47 @@ public path entirely rather than keep patching it:
   default, everything older fetched only when opened) instead of shipping a
   fixed recent window or the whole history at once.
 - **`Dockerfile.pages-publisher` + `scripts/publish_pages.sh`** is the
-  `pages-publisher` container in the compose file above, combining the public
-  Angular build with the exporter's JSON and pushing it to Cloudflare Pages
-  via `wrangler` on the same 15-minute loop. It is a separate image from the
-  main one on purpose — the main `Dockerfile` deliberately keeps Node out of
-  the runtime image, and wrangler is the only supported way to push files to
-  Cloudflare Pages (there is no documented plain REST API for it). Needs
-  `CLOUDFLARE_API_TOKEN` (Account → Cloudflare Pages → Edit),
-  `CLOUDFLARE_ACCOUNT_ID`, and optionally `PAGES_PROJECT_NAME` in `.env`. Its
+  `pages-publisher` container in the compose file above. It is a separate
+  image from the main one on purpose — the main `Dockerfile` deliberately
+  keeps Node out of the runtime image, and wrangler is the only supported way
+  to push files to Cloudflare Pages (there is no documented plain REST API for
+  it). Needs `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and optionally
+  `PAGES_PROJECT_NAME` in `.env`. Its
   volume mount onto the shared data is read-only — this container has no
   reason to ever write to it, and confirmed refusing to (`touch` inside it
   fails with a read-only-filesystem error).
+
+- **`R2_SNAPSHOT_BUCKET` decides which of two shapes the publisher runs in,
+  and since 2026-09-11 this deployment uses the second.** Unset, every round
+  bundles the Angular shell and the exporter's JSON together and deploys both
+  to Pages. Set, the shell is deployed to Pages **once at startup** and the
+  JSON goes to an R2 bucket on its own domain
+  (`data.ten-acre.nandyalu.com`), uploading only the files whose contents
+  changed.
+
+  **The reason is deployment count, not speed.** Cloudflare refuses to delete
+  a Pages project holding more than a hundred deployments, and a deploy every
+  15 minutes makes 96 a day — which is what made the old `the-allowance`
+  project awkward to remove. The two halves of the site change at wildly
+  different rates: the bundle about monthly, the JSON every 15 minutes.
+
+  **The comparison is by content hash, never timestamp.** The exporter
+  rewrites all 89 files (3.9 MB) every round and almost none of them differ,
+  because a graded signal's JSON is frozen once written. Measured across four
+  rounds: a cold start uploads everything, a round where the exporter rewrote
+  every file uploads nothing.
+
+  **The bucket name and the bundle are one setting in two places.** The
+  bundle learns the address at build time from `Dockerfile.pages-publisher`'s
+  `SNAPSHOT_BASE_URL` build argument (default `/data`, meaning beside the
+  page), and the container reads `R2_SNAPSHOT_BUCKET` at run time. Build one
+  without the other and the site renders empty rather than erroring. The
+  token also needs Account → R2 → Edit on top of Pages → Edit.
+
+  **A Cloudflare Pages project cannot be renamed.** The `pages.dev` subdomain
+  is fixed at creation; renaming means creating a new project and deleting the
+  old one. That is why `PAGES_PROJECT_NAME` changing is a redeploy, not an
+  edit in the dashboard.
 
 **`trading-bot-public` and `cloudflared` are retired**, along with the Zero
 Trust tunnel itself (deleted outright, not just unused) — the public site is

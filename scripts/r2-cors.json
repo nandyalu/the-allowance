@@ -1,0 +1,8 @@
+[
+  {
+    "AllowedOrigins": ["https://ten-acre.nandyalu.com"],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "MaxAgeSeconds": 3600
+  }
+]
